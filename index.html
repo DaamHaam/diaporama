@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Diaporama">
+<title>Diaporama</title>
+<style>
+  :root{
+    --bg:#000; --panel:#1c1c1e; --panel2:#2c2c2e; --line:#3a3a3c;
+    --txt:#fff; --muted:#9a9a9e; --accent:#0a84ff; --gold:#ffd60a; --danger:#ff453a;
+    --bar-h:64px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; height:100%; background:var(--bg); color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden; overscroll-behavior:none; position:fixed; inset:0; touch-action:manipulation;}
+  button{font-family:inherit; color:inherit; cursor:pointer;}
+
+  /* ---- Scène ---- */
+  #stage{position:absolute; inset:0; background:#000; display:flex; align-items:center; justify-content:center;}
+  #photo{max-width:100%; max-height:100%; object-fit:contain; user-select:none; -webkit-user-drag:none;}
+  #empty{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:24px; gap:18px;}
+  #empty h1{font-size:22px; margin:0; font-weight:600;}
+  #empty p{color:var(--muted); margin:0; font-size:15px; line-height:1.5; max-width:340px;}
+  .hidden{display:none !important;}
+
+  /* zones tactiles prev/next/centre */
+  #zones{position:absolute; inset:0; z-index:10; display:flex;}
+  #zones .z{flex:1; height:100%;}
+  #zoneMid{flex:1.2 !important;}
+
+  /* rang doré */
+  #rank{position:absolute; top:calc(env(safe-area-inset-top) + 10px); right:14px; z-index:20;
+    color:var(--gold); font-size:34px; font-weight:800; min-width:46px; min-height:46px;
+    display:flex; align-items:center; justify-content:center; text-shadow:0 2px 6px rgba(0,0,0,.8);
+    background:rgba(0,0,0,.25); border-radius:12px; padding:2px 8px;}
+  #rank:empty{background:transparent;}
+
+  /* compteur + nom */
+  #hud{position:absolute; top:calc(env(safe-area-inset-top) + 12px); left:14px; z-index:20;
+    color:#fff; font-size:13px; background:rgba(0,0,0,.35); padding:5px 10px; border-radius:10px;
+    max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  #pausePill{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:20;
+    font-size:60px; opacity:0; transition:opacity .25s; pointer-events:none; text-shadow:0 3px 10px rgba(0,0,0,.7);}
+  #pausePill.show{opacity:.9;}
+
+  /* ---- Barre de contrôle ---- */
+  #bar{position:absolute; left:0; right:0; bottom:0; z-index:30; height:calc(var(--bar-h) + env(safe-area-inset-bottom));
+    padding-bottom:env(safe-area-inset-bottom); background:rgba(20,20,22,.82);
+    -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); border-top:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-around; transition:transform .3s, opacity .3s;}
+  #bar.down{transform:translateY(110%); opacity:0;}
+  .bbtn{background:none; border:0; padding:6px; width:46px; height:46px; border-radius:12px;
+    font-size:22px; display:flex; align-items:center; justify-content:center; position:relative;}
+  .bbtn:active{background:rgba(255,255,255,.12);}
+  .bbtn.play{font-size:26px;}
+  #rankBtn .cnt{position:absolute; top:2px; right:2px; font-size:11px; color:var(--gold); font-weight:700;}
+
+  /* ---- Panneau (bottom sheet) ---- */
+  #panel{position:absolute; inset:0; z-index:40; background:rgba(0,0,0,.55); display:flex; align-items:flex-end;
+    opacity:0; pointer-events:none; transition:opacity .25s;}
+  #panel.open{opacity:1; pointer-events:auto;}
+  #sheet{background:var(--panel); width:100%; max-height:88%; border-radius:18px 18px 0 0;
+    display:flex; flex-direction:column; transform:translateY(100%); transition:transform .3s;
+    padding-bottom:env(safe-area-inset-bottom);}
+  #panel.open #sheet{transform:translateY(0);}
+  .sheet-head{display:flex; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); gap:8px;}
+  .tabs{display:flex; gap:6px; flex:1;}
+  .tab{flex:1; text-align:center; padding:9px; border-radius:10px; background:var(--panel2); font-size:14px; border:0;}
+  .tab.active{background:var(--accent);}
+  .close-x{width:36px; height:36px; border-radius:18px; background:var(--panel2); border:0; font-size:18px;}
+  .sheet-body{overflow-y:auto; padding:16px; -webkit-overflow-scrolling:touch;}
+  .tabpage{display:none;} .tabpage.active{display:block;}
+
+  .row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid var(--line);}
+  .row:last-child{border-bottom:0;}
+  .row .lbl{font-size:15px;} .row .sub{font-size:12px; color:var(--muted); margin-top:3px;}
+  input[type=range]{width:150px; accent-color:var(--accent);}
+  .val{font-size:14px; color:var(--muted); min-width:44px; text-align:right;}
+
+  /* switch */
+  .sw{position:relative; width:50px; height:30px; flex:none;}
+  .sw input{opacity:0; width:100%; height:100%; margin:0;}
+  .sw .track{position:absolute; inset:0; background:var(--line); border-radius:15px; transition:.2s;}
+  .sw .knob{position:absolute; top:3px; left:3px; width:24px; height:24px; background:#fff; border-radius:12px; transition:.2s;}
+  .sw input:checked ~ .track{background:#34c759;}
+  .sw input:checked ~ .knob{transform:translateX(20px);}
+
+  .letters{display:flex; flex-wrap:wrap; gap:8px; padding-top:10px;}
+  .lchip{min-width:42px; height:42px; padding:0 10px; border-radius:11px; background:var(--panel2); border:1px solid var(--line);
+    font-size:16px; font-weight:600; text-transform:uppercase; display:flex; align-items:center; justify-content:center; gap:5px;}
+  .lchip.on{background:var(--accent); border-color:var(--accent);}
+  .lchip .n{font-size:11px; color:var(--muted);} .lchip.on .n{color:#fff;}
+  .allbtn{margin-top:12px; width:100%; padding:12px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); font-size:15px;}
+
+  .big{width:100%; padding:15px; border-radius:14px; background:var(--accent); border:0; font-size:17px; font-weight:600; margin-bottom:10px;}
+  .big.sec{background:var(--panel2); border:1px solid var(--line);}
+  .hint{font-size:13px; color:var(--muted); line-height:1.5; margin:8px 2px;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:10px; margin-top:10px;}
+  .thumb{position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; background:#000; border:1px solid var(--line);}
+  .thumb img{width:100%; height:100%; object-fit:cover;}
+  .thumb .tag{position:absolute; left:4px; bottom:4px; background:rgba(0,0,0,.6); font-size:11px; padding:1px 6px; border-radius:6px;}
+  .thumb .del{position:absolute; top:3px; right:3px; width:24px; height:24px; border-radius:12px; background:rgba(0,0,0,.6); border:0; color:#fff; font-size:14px; line-height:1;}
+  .grouphdr{font-size:13px; color:var(--muted); margin:16px 2px 2px; text-transform:uppercase; letter-spacing:.5px;}
+  kbd{background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; font-size:12px;}
+  .help-line{padding:7px 0; font-size:14px; display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line);}
+
+  /* ---- Modale nom ---- */
+  #nameModal{position:absolute; inset:0; z-index:45; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:22px;
+    opacity:0; pointer-events:none; transition:opacity .2s;}
+  #nameModal.open{opacity:1; pointer-events:auto;}
+  .card{background:var(--panel); border-radius:18px; padding:18px; width:100%; max-width:360px;}
+  .card h3{margin:0 0 12px; font-size:17px;}
+  #namePreview{width:100%; height:150px; object-fit:contain; background:#000; border-radius:12px; margin-bottom:12px;}
+  #nameInput{width:100%; padding:14px; font-size:17px; border-radius:12px; border:1px solid var(--line); background:var(--panel2); color:#fff; margin-bottom:8px;}
+  #nameInput:focus{outline:2px solid var(--accent);}
+  .catinfo{font-size:13px; color:var(--muted); min-height:18px; margin-bottom:14px;}
+  .catinfo b{color:var(--gold); font-size:15px;}
+  .card-actions{display:flex; gap:10px;}
+  .card-actions button{flex:1; padding:13px; border-radius:12px; border:0; font-size:16px; font-weight:600;}
+  .btn-cancel{background:var(--panel2); color:#fff;}
+  .btn-ok{background:var(--accent); color:#fff;}
+  #queueInfo{font-size:12px; color:var(--muted); text-align:center; margin-top:10px; min-height:16px;}
+
+  /* ---- Rang picker ---- */
+  #rankModal{position:absolute; inset:0; z-index:45; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:22px;
+    opacity:0; pointer-events:none; transition:opacity .2s;}
+  #rankModal.open{opacity:1; pointer-events:auto;}
+  #rankGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 0;}
+  #rankGrid button{aspect-ratio:1; border-radius:12px; background:var(--panel2); border:1px solid var(--line); font-size:22px; font-weight:700;}
+  #rankGrid button.cur{background:var(--gold); color:#000; border-color:var(--gold);}
+
+  /* toast */
+  #toast{position:absolute; left:50%; bottom:calc(var(--bar-h) + env(safe-area-inset-bottom) + 20px); transform:translateX(-50%) translateY(20px);
+    z-index:50; background:rgba(50,50,52,.95); padding:10px 18px; border-radius:24px; font-size:14px; opacity:0; transition:.25s; pointer-events:none;}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+
+  /* zone de collage cachée (fallback appui long) */
+  #pasteZone{position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; overflow:hidden;}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <img id="photo" alt="" class="hidden">
+  <div id="empty">
+    <h1>📋 Colle une capture d'écran</h1>
+    <p>Sur iPhone&nbsp;: fais une capture, puis appuie sur <b>Coller</b> ci-dessous (ou appui long → Coller).<br>
+       Sur Mac&nbsp;: <kbd>⌘</kbd>+<kbd>V</kbd> n'importe où.</p>
+    <button class="big" style="max-width:280px" id="emptyPaste">📋 Coller une image</button>
+    <p style="font-size:13px">Tu donneras un petit nom à chaque image — sa <b>première lettre</b> définit sa catégorie.</p>
+  </div>
+</div>
+
+<div id="hud" class="hidden"></div>
+<div id="rank"></div>
+<div id="pausePill">⏸</div>
+
+<div id="zones">
+  <div class="z" id="zonePrev"></div>
+  <div class="z" id="zoneMid"></div>
+  <div class="z" id="zoneNext"></div>
+</div>
+
+<div id="bar">
+  <button class="bbtn" id="btnPaste" title="Coller">📋</button>
+  <button class="bbtn" id="btnPrev" title="Précédent">⏮</button>
+  <button class="bbtn play" id="btnPlay" title="Lecture/Pause">⏸</button>
+  <button class="bbtn" id="btnNext" title="Suivant">⏭</button>
+  <button class="bbtn" id="rankBtn" title="Classer la catégorie">#<span class="cnt"></span></button>
+  <button class="bbtn" id="btnDel" title="Supprimer l'image">🗑</button>
+  <button class="bbtn" id="btnMenu" title="Réglages">⚙️</button>
+</div>
+
+<!-- Panneau -->
+<div id="panel">
+  <div id="sheet">
+    <div class="sheet-head">
+      <div class="tabs">
+        <button class="tab active" data-tab="lib">Bibliothèque</button>
+        <button class="tab" data-tab="set">Réglages</button>
+        <button class="tab" data-tab="help">Aide</button>
+      </div>
+      <button class="close-x" id="panelClose">✕</button>
+    </div>
+    <div class="sheet-body">
+      <!-- Bibliothèque -->
+      <div class="tabpage active" id="page-lib">
+        <button class="big" id="libPaste">📋 Coller une image</button>
+        <div class="hint">Les images restent en mémoire uniquement et disparaissent à la fermeture. Rien n'est enregistré sur ton téléphone.</div>
+        <div id="libCount" class="hint"></div>
+        <div id="libGrid"></div>
+      </div>
+      <!-- Réglages -->
+      <div class="tabpage" id="page-set">
+        <div class="row">
+          <div><div class="lbl">Délai entre images</div><div class="sub">Durée d'affichage</div></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="range" id="setDelay" min="1" max="20" step="1">
+            <span class="val" id="delayVal">5 s</span>
+          </div>
+        </div>
+        <div class="row">
+          <div><div class="lbl">Ordre aléatoire</div></div>
+          <label class="sw"><input type="checkbox" id="setRandom"><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div class="row">
+          <div><div class="lbl">Mode séries</div><div class="sub">N images par catégorie</div></div>
+          <label class="sw"><input type="checkbox" id="setSeries"><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div class="row">
+          <div><div class="lbl">Taille des séries</div></div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="range" id="setSeriesSize" min="1" max="50" step="1">
+            <span class="val" id="seriesVal">3</span>
+          </div>
+        </div>
+        <div class="row">
+          <div><div class="lbl">Mode équitable</div><div class="sub">Chaque catégorie à égalité</div></div>
+          <label class="sw"><input type="checkbox" id="setFair"><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div class="row">
+          <div><div class="lbl">Afficher le classement</div><div class="sub">Chiffre doré en haut à droite</div></div>
+          <label class="sw"><input type="checkbox" id="setRank" checked><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div class="row">
+          <div><div class="lbl">Plein écran</div><div class="sub">Mac / navigateur</div></div>
+          <label class="sw"><input type="checkbox" id="setFull"><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div style="padding-top:14px">
+          <div class="lbl">Catégories à afficher</div>
+          <div class="letters" id="filterLetters"></div>
+          <button class="allbtn" id="filterAll">Toutes les catégories</button>
+        </div>
+      </div>
+      <!-- Aide -->
+      <div class="tabpage" id="page-help">
+        <div class="hint">Gestes tactiles pendant le diaporama&nbsp;:</div>
+        <div class="help-line"><span>Zone gauche / droite</span><span>Précédent / Suivant</span></div>
+        <div class="help-line"><span>Zone centrale (tap)</span><span>Pause / Reprise</span></div>
+        <div class="help-line"><span>Balayer ← →</span><span>Précédent / Suivant</span></div>
+        <div class="help-line"><span>Bouton #</span><span>Classer la catégorie (1–9)</span></div>
+        <div class="hint" style="margin-top:16px">Raccourcis clavier (Mac)&nbsp;:</div>
+        <div class="help-line"><span><kbd>Espace</kbd></span><span>Pause / Reprise</span></div>
+        <div class="help-line"><span><kbd>←</kbd> <kbd>→</kbd></span><span>Précédent / Suivant</span></div>
+        <div class="help-line"><span><kbd>⌘</kbd>+<kbd>V</kbd></span><span>Coller une image</span></div>
+        <div class="help-line"><span><kbd>A</kbd>–<kbd>Z</kbd></span><span>Filtrer par lettre</span></div>
+        <div class="help-line"><span><kbd>0</kbd></span><span>Toutes les catégories</span></div>
+        <div class="help-line"><span><kbd>1</kbd>–<kbd>9</kbd></span><span>Classer la catégorie courante</span></div>
+        <div class="help-line"><span><kbd>↑</kbd></span><span>Afficher/masquer le classement</span></div>
+        <div class="help-line"><span><kbd>Suppr</kbd></span><span>Supprimer l'image courante</span></div>
+        <div class="help-line"><span><kbd>F</kbd></span><span>Plein écran</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modale nom -->
+<div id="nameModal">
+  <div class="card">
+    <h3>Nom de l'image</h3>
+    <img id="namePreview" alt="">
+    <input id="nameInput" type="text" placeholder="ex : moto, v, h5…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+    <div class="catinfo" id="catInfo"></div>
+    <div class="card-actions">
+      <button class="btn-cancel" id="nameCancel">Annuler</button>
+      <button class="btn-ok" id="nameOk">Ajouter</button>
+    </div>
+    <div id="queueInfo"></div>
+  </div>
+</div>
+
+<!-- Rang picker -->
+<div id="rankModal">
+  <div class="card">
+    <h3 id="rankTitle">Classer la catégorie</h3>
+    <div id="rankGrid"></div>
+    <div class="card-actions">
+      <button class="btn-cancel" id="rankClear">Retirer le rang</button>
+      <button class="btn-cancel" id="rankCancel">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="pasteZone" contenteditable="true"></div>
+
+<script>
+"use strict";
+(function(){
+  // ---------------- État ----------------
+  const state = {
+    items: [],            // {id, name, letter, url}
+    order: [],            // playlist courante (items)
+    index: 0,
+    delay: 5000,
+    random: true,
+    seriesMode: false,
+    seriesSize: 3,
+    fairMode: false,
+    activeFilters: null,  // null = toutes ; Set = catégories choisies
+    paused: false,
+    showRank: true,
+    groupOrder: [],       // ordre de classement des lettres
+    timer: null,
+  };
+  let uid = 1;
+
+  // ---------------- Raccourcis DOM ----------------
+  const $ = s => document.querySelector(s);
+  const photo = $('#photo'), empty = $('#empty'), hud = $('#hud'),
+        rankEl = $('#rank'), pausePill = $('#pausePill'), toast = $('#toast');
+
+  // ---------------- Utilitaires catégorie ----------------
+  function letterOf(name){
+    const c = (name||'').trim()[0];
+    if(!c) return null;
+    return /\p{L}/u.test(c) ? c.toLowerCase() : null;
+  }
+  function groups(){
+    const g = {};
+    for(const it of state.items){ if(it.letter){ (g[it.letter] ||= []).push(it); } }
+    const out = {};
+    for(const k of Object.keys(g).sort()) out[k] = g[k];
+    return out;
+  }
+  function rankMap(){
+    const m = {};
+    state.groupOrder.forEach((l,i)=> m[l] = i+1);
+    return m;
+  }
+  function syncGroups(){
+    const letters = Object.keys(groups());
+    state.groupOrder = state.groupOrder.filter(l=>letters.includes(l));
+    for(const l of letters) if(!state.groupOrder.includes(l)) state.groupOrder.push(l);
+    if(state.activeFilters){
+      state.activeFilters = new Set([...state.activeFilters].filter(l=>letters.includes(l)));
+      if(state.activeFilters.size===0) state.activeFilters = null;
+    }
+  }
+
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+  // ---------------- Construction de la playlist (cf. prepare_current_list) ----------------
+  function buildPlaylist(){
+    const g = groups();
+    const keys = Object.keys(g);
+    let list;
+
+    if(state.fairMode && state.activeFilters===null && keys.length){
+      const counts = keys.map(k=>g[k].length);
+      const minCount = Math.min(...counts);
+      const cycle = [];
+      for(const k of keys){ const grp = shuffle(g[k].slice()); cycle.push(...grp.slice(0,minCount)); }
+      list = shuffle(cycle);
+    }
+    else if(state.seriesMode && state.activeFilters===null && keys.length){
+      list = [];
+      for(const k of keys){
+        let grp = g[k].slice();
+        if(state.random) shuffle(grp);
+        list.push(...grp.slice(0, state.seriesSize));
+      }
+    }
+    else {
+      let base;
+      if(state.activeFilters===null) base = state.items.slice();
+      else { base = []; for(const l of state.activeFilters) if(g[l]) base.push(...g[l]); }
+      if(state.random) shuffle(base);
+      else base.sort((a,b)=> a.name.localeCompare(b.name));
+      list = base;
+    }
+    state.order = list;
+    state.index = 0;
+  }
+
+  // ---------------- Affichage ----------------
+  function clearTimer(){ if(state.timer){ clearTimeout(state.timer); state.timer=null; } }
+  function currentItem(){ return state.order[state.index] || null; }
+
+  function show(){
+    clearTimer();
+    if(!state.order.length){
+      photo.classList.add('hidden'); empty.classList.remove('hidden');
+      hud.classList.add('hidden'); updateRank(null); return;
+    }
+    empty.classList.add('hidden'); photo.classList.remove('hidden');
+    const it = currentItem();
+    photo.src = it.url;
+    hud.classList.remove('hidden');
+    hud.textContent = (it.name || '(sans nom)') + '  ·  ' + (state.index+1) + '/' + state.order.length;
+    updateRank(it.letter);
+    updateRankCount();
+    if(!state.paused) state.timer = setTimeout(next, state.delay);
+  }
+
+  function next(){
+    if(!state.order.length) return;
+    clearTimer();
+    const ni = (state.index+1) % state.order.length;
+    if(state.fairMode && state.activeFilters===null && ni===0) buildPlaylist();
+    else state.index = ni;
+    show();
+  }
+  function prev(){
+    if(!state.order.length) return;
+    clearTimer();
+    state.index = (state.index-1+state.order.length) % state.order.length;
+    show();
+  }
+
+  function updateRank(letter){
+    if(!state.showRank){ rankEl.textContent=''; return; }
+    const r = rankMap()[letter];
+    rankEl.textContent = r ? String(r) : '';
+  }
+
+  function togglePause(){
+    state.paused = !state.paused;
+    $('#btnPlay').textContent = state.paused ? '▶️' : '⏸';
+    pausePill.textContent = state.paused ? '⏸' : '▶️';
+    pausePill.classList.add('show');
+    setTimeout(()=>pausePill.classList.remove('show'), 500);
+    if(state.paused) clearTimer(); else show();
+  }
+
+  function refresh(){ syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount(); show(); }
+
+  // ---------------- Ajout / suppression ----------------
+  function addItem(name, url){
+    const it = { id: uid++, name: name||'', letter: letterOf(name), url };
+    state.items.push(it);
+    refresh();
+    showToast(it.letter ? ('Ajouté · catégorie '+it.letter.toUpperCase()) : 'Ajouté (sans catégorie)');
+  }
+  function removeItem(id){
+    const i = state.items.findIndex(x=>x.id===id);
+    if(i<0) return;
+    try{ URL.revokeObjectURL(state.items[i].url); }catch(e){}
+    state.items.splice(i,1);
+    // ajuster index courant si besoin
+    refresh();
+  }
+  function deleteCurrent(){
+    const it = currentItem(); if(!it) return;
+    const keepIndex = state.index;
+    try{ URL.revokeObjectURL(it.url); }catch(e){}
+    state.items = state.items.filter(x=>x.id!==it.id);
+    syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount();
+    state.index = state.order.length ? Math.min(keepIndex, state.order.length-1) : 0;
+    show();
+  }
+
+  // ---------------- Classement ----------------
+  function assignRank(pos){
+    const it = currentItem();
+    if(!it || !it.letter){ showToast('Cette image n\'a pas de catégorie'); return; }
+    const go = state.groupOrder.filter(l=>l!==it.letter);
+    const idx = Math.min(Math.max(pos-1,0), go.length);
+    go.splice(idx,0,it.letter);
+    for(const l of Object.keys(groups())) if(!go.includes(l)) go.push(l);
+    state.groupOrder = go;
+    updateRank(it.letter); updateRankCount();
+    showToast('Catégorie '+it.letter.toUpperCase()+' classée #'+(idx+1));
+  }
+  function clearRank(){
+    const it = currentItem();
+    if(!it || !it.letter) return;
+    // remet la lettre en fin => rang le plus bas ; pour "retirer" on la place après toutes les autres
+    state.groupOrder = state.groupOrder.filter(l=>l!==it.letter);
+    state.groupOrder.push(it.letter);
+    updateRank(it.letter); updateRankCount();
+  }
+  function updateRankCount(){
+    const it = currentItem();
+    const r = it ? rankMap()[it.letter] : null;
+    $('#rankBtn .cnt').textContent = r ? r : '';
+  }
+
+  // ---------------- File d'images à nommer ----------------
+  let nameQueue = [];      // {url}
+  let nameCurrent = null;
+  const nameModal = $('#nameModal'), nameInput = $('#nameInput'),
+        namePreview = $('#namePreview'), catInfo = $('#catInfo'), queueInfo = $('#queueInfo');
+
+  function queueBlobs(blobs){
+    for(const b of blobs){ if(b) nameQueue.push(URL.createObjectURL(b)); }
+    if(!nameCurrent) nextName();
+  }
+  function nextName(){
+    if(!nameQueue.length){ nameModal.classList.remove('open'); nameCurrent=null; return; }
+    nameCurrent = nameQueue.shift();
+    namePreview.src = nameCurrent;
+    nameInput.value = '';
+    updateCatInfo();
+    queueInfo.textContent = nameQueue.length ? ('+'+nameQueue.length+' autre(s) en attente') : '';
+    nameModal.classList.add('open');
+    setTimeout(()=>{ try{ nameInput.focus(); }catch(e){} }, 120);
+  }
+  function updateCatInfo(){
+    const l = letterOf(nameInput.value);
+    catInfo.innerHTML = l ? ('Catégorie : <b>'+l.toUpperCase()+'</b>')
+                          : 'Aucune lettre → l\'image ne sera dans aucune catégorie';
+  }
+  function confirmName(){
+    if(!nameCurrent) return;
+    addItem(nameInput.value.trim(), nameCurrent);
+    nameCurrent = null;
+    nextName();
+  }
+  function cancelName(){
+    if(nameCurrent){ try{ URL.revokeObjectURL(nameCurrent); }catch(e){} nameCurrent=null; }
+    nextName();
+  }
+  nameInput.addEventListener('input', updateCatInfo);
+  nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); confirmName(); } });
+  $('#nameOk').addEventListener('click', confirmName);
+  $('#nameCancel').addEventListener('click', cancelName);
+
+  // ---------------- Collage ----------------
+  function blobsFromDataTransfer(dt){
+    const out = [];
+    if(!dt) return out;
+    const items = dt.items ? Array.from(dt.items) : [];
+    for(const it of items){ if(it.kind==='file' && it.type.startsWith('image/')){ const f=it.getAsFile(); if(f) out.push(f); } }
+    if(!out.length && dt.files){ for(const f of dt.files) if(f.type.startsWith('image/')) out.push(f); }
+    return out;
+  }
+
+  // 1) Événement paste global (⌘V Mac + appui long → Coller iOS) — pas de HTTPS requis
+  document.addEventListener('paste', e=>{
+    const blobs = blobsFromDataTransfer(e.clipboardData);
+    if(blobs.length){ e.preventDefault(); queueBlobs(blobs); }
+    else { setTimeout(scanPasteZone, 60); } // fallback : image insérée dans la zone
+  });
+
+  // Zone contenteditable de secours : si iOS insère un <img>, on le récupère
+  const pasteZone = $('#pasteZone');
+  function scanPasteZone(){
+    const imgs = pasteZone.querySelectorAll('img');
+    if(!imgs.length){ pasteZone.innerHTML=''; return; }
+    let n=0;
+    imgs.forEach(im=>{
+      const src = im.src;
+      if(src){ fetch(src).then(r=>r.blob()).then(b=>queueBlobs([b])).catch(()=>{}); n++; }
+    });
+    pasteZone.innerHTML='';
+    if(n) showToast('Image collée');
+  }
+  pasteZone.addEventListener('input', ()=> setTimeout(scanPasteZone, 30));
+
+  // 2) Bouton Coller : API presse-papier (HTTPS/standalone) sinon on arme la zone
+  async function pasteFromButton(){
+    if(navigator.clipboard && navigator.clipboard.read){
+      try{
+        const data = await navigator.clipboard.read();
+        const blobs = [];
+        for(const item of data){
+          const type = item.types.find(t=>t.startsWith('image/'));
+          if(type){ blobs.push(await item.getType(type)); }
+        }
+        if(blobs.length){ queueBlobs(blobs); return; }
+        showToast('Aucune image dans le presse-papier');
+        return;
+      }catch(err){ /* non autorisé / non sécurisé → fallback */ }
+    }
+    // Fallback : focus zone éditable, l'utilisateur fait « Coller »
+    pasteZone.style.pointerEvents='auto'; pasteZone.style.opacity='0';
+    pasteZone.focus();
+    showToast('Appuie longuement puis « Coller »');
+    setTimeout(()=>{ pasteZone.style.pointerEvents='none'; }, 6000);
+  }
+
+  // ---------------- Panneau / réglages ----------------
+  const panel = $('#panel');
+  function openPanel(tab){
+    panel.classList.add('open');
+    if(tab) selectTab(tab);
+    renderLib(); renderFilters(); syncSettingUI();
+  }
+  function closePanel(){ panel.classList.remove('open'); }
+  function selectTab(name){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+    document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active', p.id==='page-'+name));
+  }
+  document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>selectTab(t.dataset.tab)));
+  $('#panelClose').addEventListener('click', closePanel);
+  panel.addEventListener('click', e=>{ if(e.target===panel) closePanel(); });
+
+  function syncSettingUI(){
+    $('#setDelay').value = state.delay/1000; $('#delayVal').textContent = (state.delay/1000)+' s';
+    $('#setRandom').checked = state.random;
+    $('#setSeries').checked = state.seriesMode;
+    $('#setSeriesSize').value = state.seriesSize; $('#seriesVal').textContent = state.seriesSize;
+    $('#setFair').checked = state.fairMode;
+    $('#setRank').checked = state.showRank;
+  }
+
+  $('#setDelay').addEventListener('input', e=>{ state.delay=+e.target.value*1000; $('#delayVal').textContent=(+e.target.value)+' s'; });
+  $('#setRandom').addEventListener('change', e=>{ state.random=e.target.checked; buildPlaylist(); show(); });
+  $('#setSeries').addEventListener('change', e=>{
+    state.seriesMode=e.target.checked;
+    if(state.seriesMode && state.fairMode){ state.fairMode=false; $('#setFair').checked=false; }
+    buildPlaylist(); show();
+  });
+  $('#setSeriesSize').addEventListener('input', e=>{ state.seriesSize=+e.target.value; $('#seriesVal').textContent=e.target.value; if(state.seriesMode){ buildPlaylist(); show(); } });
+  $('#setFair').addEventListener('change', e=>{
+    state.fairMode=e.target.checked;
+    if(state.fairMode && state.seriesMode){ state.seriesMode=false; $('#setSeries').checked=false; }
+    buildPlaylist(); show();
+  });
+  $('#setRank').addEventListener('change', e=>{ state.showRank=e.target.checked; updateRank(currentItem()?.letter); });
+  $('#setFull').addEventListener('change', e=>{ setFullscreen(e.target.checked); });
+
+  function renderFilters(){
+    const box = $('#filterLetters'); box.innerHTML='';
+    const g = groups(); const letters = Object.keys(g);
+    if(!letters.length){ box.innerHTML = '<div class="hint">Aucune catégorie pour l\'instant.</div>'; return; }
+    for(const l of letters){
+      const on = state.activeFilters===null || state.activeFilters.has(l);
+      const chip = document.createElement('button');
+      chip.className = 'lchip'+(on?' on':'');
+      chip.innerHTML = l.toUpperCase()+' <span class="n">'+g[l].length+'</span>';
+      chip.addEventListener('click', ()=>toggleFilter(l));
+      box.appendChild(chip);
+    }
+  }
+  function toggleFilter(letter){
+    const all = Object.keys(groups());
+    let sel;
+    if(state.activeFilters===null) sel = new Set(all);        // tout affiché → on part de tout
+    else sel = new Set(state.activeFilters);
+    if(sel.has(letter)) sel.delete(letter); else sel.add(letter);
+    if(sel.size===0) state.activeFilters = new Set();          // aucune
+    else if(sel.size===all.length) state.activeFilters = null; // toutes
+    else state.activeFilters = sel;
+    if(state.activeFilters!==null && state.fairMode){ /* équitable ignoré avec filtre */ }
+    buildPlaylist(); renderFilters(); show();
+  }
+  $('#filterAll').addEventListener('click', ()=>{ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); });
+
+  function renderLib(){
+    const grid = $('#libGrid'); grid.innerHTML='';
+    $('#libCount').textContent = state.items.length ? (state.items.length+' image(s) en mémoire') : 'Aucune image pour l\'instant.';
+    if(!state.items.length) return;
+    const g = groups();
+    const noCat = state.items.filter(x=>!x.letter);
+    const order = [...Object.keys(g), ...(noCat.length?['_none']:[])];
+    for(const key of order){
+      const list = key==='_none' ? noCat : g[key];
+      const hdr = document.createElement('div'); hdr.className='grouphdr';
+      hdr.textContent = key==='_none' ? 'Sans catégorie' : ('Catégorie '+key.toUpperCase()+' · '+list.length);
+      grid.appendChild(hdr);
+      const wrap = document.createElement('div'); wrap.className='grid';
+      for(const it of list){
+        const t = document.createElement('div'); t.className='thumb';
+        t.innerHTML = '<img src="'+it.url+'"><span class="tag">'+escapeHtml(it.name||'—')+'</span><button class="del">✕</button>';
+        t.querySelector('.del').addEventListener('click', ()=>removeItem(it.id));
+        wrap.appendChild(t);
+      }
+      grid.appendChild(wrap);
+    }
+  }
+  function escapeHtml(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  // ---------------- Rang picker ----------------
+  const rankModal = $('#rankModal');
+  function openRankPicker(){
+    const it = currentItem();
+    if(!it || !it.letter){ showToast('Cette image n\'a pas de catégorie'); return; }
+    $('#rankTitle').textContent = 'Classer la catégorie '+it.letter.toUpperCase();
+    const grid = $('#rankGrid'); grid.innerHTML='';
+    const cur = rankMap()[it.letter];
+    for(let i=1;i<=9;i++){
+      const b=document.createElement('button');
+      b.textContent=i; if(i===cur) b.classList.add('cur');
+      b.addEventListener('click', ()=>{ assignRank(i); rankModal.classList.remove('open'); });
+      grid.appendChild(b);
+    }
+    rankModal.classList.add('open');
+  }
+  $('#rankCancel').addEventListener('click', ()=>rankModal.classList.remove('open'));
+  $('#rankClear').addEventListener('click', ()=>{ clearRank(); rankModal.classList.remove('open'); });
+  rankModal.addEventListener('click', e=>{ if(e.target===rankModal) rankModal.classList.remove('open'); });
+
+  // ---------------- Plein écran ----------------
+  function setFullscreen(on){
+    try{
+      if(on){ (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen||function(){}).call(document.documentElement); }
+      else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+    }catch(e){}
+  }
+
+  // ---------------- Toast ----------------
+  let toastT=null;
+  function showToast(msg){
+    toast.textContent=msg; toast.classList.add('show');
+    clearTimeout(toastT); toastT=setTimeout(()=>toast.classList.remove('show'), 1800);
+  }
+
+  // ---------------- Contrôles / gestes ----------------
+  $('#btnPaste').addEventListener('click', pasteFromButton);
+  $('#emptyPaste').addEventListener('click', pasteFromButton);
+  $('#libPaste').addEventListener('click', pasteFromButton);
+  $('#btnPrev').addEventListener('click', prev);
+  $('#btnNext').addEventListener('click', next);
+  $('#btnPlay').addEventListener('click', togglePause);
+  $('#btnDel').addEventListener('click', deleteCurrent);
+  $('#btnMenu').addEventListener('click', ()=>openPanel('set'));
+  $('#rankBtn').addEventListener('click', openRankPicker);
+  rankEl.addEventListener('click', openRankPicker);
+
+  // zones tactiles
+  $('#zonePrev').addEventListener('click', prev);
+  $('#zoneNext').addEventListener('click', next);
+  $('#zoneMid').addEventListener('click', ()=>{ if(state.order.length) togglePause(); else pasteFromButton(); });
+
+  // swipe
+  let tx=0, ty=0, tt=0;
+  const zones=$('#zones');
+  zones.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; tx=t.clientX; ty=t.clientY; tt=Date.now(); }, {passive:true});
+  zones.addEventListener('touchend', e=>{
+    const t=e.changedTouches[0]; const dx=t.clientX-tx, dy=t.clientY-ty;
+    if(Date.now()-tt<600 && Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)*1.5){
+      if(dx<0) next(); else prev();
+    }
+  }, {passive:true});
+
+  // ---------------- Clavier (Mac) ----------------
+  document.addEventListener('keydown', e=>{
+    if(nameModal.classList.contains('open')) return; // saisie du nom
+    const k = e.key;
+    if(k===' '){ e.preventDefault(); if(state.order.length) togglePause(); }
+    else if(k==='ArrowRight') next();
+    else if(k==='ArrowLeft') prev();
+    else if(k==='ArrowUp'){ state.showRank=!state.showRank; $('#setRank').checked=state.showRank; updateRank(currentItem()?.letter); }
+    else if(k==='Delete'||k==='Backspace'){ deleteCurrent(); }
+    else if(k==='0'){ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); }
+    else if(/^[1-9]$/.test(k)){ assignRank(+k); }
+    else if(k==='f'||k==='F'){ setFullscreen(!document.fullscreenElement); }
+    else if(/^[a-zA-Z]$/.test(k)){
+      const l=k.toLowerCase();
+      if(groups()[l]){ state.activeFilters=new Set([l]); buildPlaylist(); renderFilters(); show(); }
+    }
+  });
+
+  // empêcher le zoom double-tap iOS sur les boutons
+  document.addEventListener('dblclick', e=>e.preventDefault(), {passive:false});
+
+  // ---------------- Init ----------------
+  buildPlaylist();
+  syncSettingUI();
+  show();
+})();
+</script>
+</body>
+</html>

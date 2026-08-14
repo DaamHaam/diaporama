@@ -44,7 +44,7 @@
   /* compteur + nom */
   #hud{position:absolute; top:calc(env(safe-area-inset-top) + 12px); left:14px; z-index:20;
     color:#fff; font-size:13px; background:rgba(0,0,0,.35); padding:5px 10px; border-radius:10px;
-    max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+    max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:opacity .3s;}
   #pausePill{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:20;
     font-size:60px; opacity:0; transition:opacity .25s; pointer-events:none; text-shadow:0 3px 10px rgba(0,0,0,.7);}
   #pausePill.show{opacity:.9;}
@@ -55,8 +55,10 @@
     -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); border-top:1px solid var(--line);
     display:flex; align-items:center; justify-content:space-around; transition:transform .3s, opacity .3s;}
   #bar.down{transform:translateY(110%); opacity:0;}
-  .bbtn{background:none; border:0; padding:6px; width:46px; height:46px; border-radius:12px;
-    font-size:22px; display:flex; align-items:center; justify-content:center; position:relative;}
+  body.immersive #bar{transform:translateY(120%); opacity:0; pointer-events:none;}
+  body.immersive #hud{opacity:0; pointer-events:none;}
+  .bbtn{background:none; border:0; padding:6px; width:42px; height:46px; border-radius:12px;
+    font-size:21px; display:flex; align-items:center; justify-content:center; position:relative;}
   .bbtn:active{background:rgba(255,255,255,.12);}
   .bbtn.play{font-size:26px;}
   #rankBtn .cnt{position:absolute; top:2px; right:2px; font-size:11px; color:var(--gold); font-weight:700;}
@@ -175,6 +177,7 @@
   <button class="bbtn" id="btnNext" title="Suivant">⏭</button>
   <button class="bbtn" id="rankBtn" title="Classer la catégorie">#<span class="cnt"></span></button>
   <button class="bbtn" id="btnDel" title="Supprimer l'image">🗑</button>
+  <button class="bbtn" id="btnFs" title="Masquer la barre / plein écran">⛶</button>
   <button class="bbtn" id="btnMenu" title="Réglages">⚙️</button>
 </div>
 
@@ -230,7 +233,7 @@
           <label class="sw"><input type="checkbox" id="setRank" checked><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
-          <div><div class="lbl">Plein écran</div><div class="sub">Mac / navigateur</div></div>
+          <div><div class="lbl">Mode immersif</div><div class="sub">Masque la barre · tape au centre pour la revoir</div></div>
           <label class="sw"><input type="checkbox" id="setFull"><span class="track"></span><span class="knob"></span></label>
         </div>
         <div style="padding-top:14px">
@@ -309,6 +312,7 @@
     showRank: true,
     groupOrder: [],       // ordre de classement des lettres
     timer: null,
+    immersive: false,     // masque la barre + le compteur
   };
   let uid = 1;
 
@@ -600,6 +604,7 @@
     $('#setSeriesSize').value = state.seriesSize; $('#seriesVal').textContent = state.seriesSize;
     $('#setFair').checked = state.fairMode;
     $('#setRank').checked = state.showRank;
+    $('#setFull').checked = state.immersive;
   }
 
   $('#setDelay').addEventListener('input', e=>{ state.delay=+e.target.value*1000; $('#delayVal').textContent=(+e.target.value)+' s'; });
@@ -616,7 +621,7 @@
     buildPlaylist(); show();
   });
   $('#setRank').addEventListener('change', e=>{ state.showRank=e.target.checked; updateRank(currentItem()?.letter); });
-  $('#setFull').addEventListener('change', e=>{ setFullscreen(e.target.checked); });
+  $('#setFull').addEventListener('change', e=>{ setImmersive(e.target.checked); });
 
   function renderFilters(){
     const box = $('#filterLetters'); box.innerHTML='';
@@ -689,12 +694,28 @@
   $('#rankClear').addEventListener('click', ()=>{ clearRank(); rankModal.classList.remove('open'); });
   rankModal.addEventListener('click', e=>{ if(e.target===rankModal) rankModal.classList.remove('open'); });
 
-  // ---------------- Plein écran ----------------
+  // ---------------- Plein écran / mode immersif ----------------
   function setFullscreen(on){
     try{
       if(on){ (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen||function(){}).call(document.documentElement); }
       else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
     }catch(e){}
+  }
+  let chromeTimer = null;
+  function setImmersive(on){
+    state.immersive = on;
+    clearTimeout(chromeTimer);
+    document.body.classList.toggle('immersive', on);
+    const s = $('#setFull'); if(s) s.checked = on;
+    try{ setFullscreen(on); }catch(e){}
+  }
+  // Réaffiche temporairement la barre en mode immersif (auto-masquage après 4 s)
+  function revealChrome(){
+    clearTimeout(chromeTimer);
+    document.body.classList.remove('immersive');
+    if(state.immersive){
+      chromeTimer = setTimeout(()=>{ if(state.immersive) document.body.classList.add('immersive'); }, 4000);
+    }
   }
 
   // ---------------- Toast ----------------
@@ -712,6 +733,7 @@
   $('#btnNext').addEventListener('click', next);
   $('#btnPlay').addEventListener('click', togglePause);
   $('#btnDel').addEventListener('click', deleteCurrent);
+  $('#btnFs').addEventListener('click', ()=> setImmersive(!state.immersive));
   $('#btnMenu').addEventListener('click', ()=>openPanel('set'));
   $('#rankBtn').addEventListener('click', openRankPicker);
   rankEl.addEventListener('click', openRankPicker);
@@ -719,7 +741,11 @@
   // zones tactiles
   $('#zonePrev').addEventListener('click', prev);
   $('#zoneNext').addEventListener('click', next);
-  $('#zoneMid').addEventListener('click', ()=>{ if(state.order.length) togglePause(); else pasteFromButton(); });
+  $('#zoneMid').addEventListener('click', ()=>{
+    if(!state.order.length){ pasteFromButton(); return; }
+    if(state.immersive) revealChrome();   // en immersif : révèle la barre
+    else togglePause();                    // sinon : pause / reprise
+  });
 
   // swipe
   let tx=0, ty=0, tt=0;
@@ -743,7 +769,7 @@
     else if(k==='Delete'||k==='Backspace'){ deleteCurrent(); }
     else if(k==='0'){ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); }
     else if(/^[1-9]$/.test(k)){ assignRank(+k); }
-    else if(k==='f'||k==='F'){ setFullscreen(!document.fullscreenElement); }
+    else if(k==='f'||k==='F'){ setImmersive(!state.immersive); }
     else if(/^[a-zA-Z]$/.test(k)){
       const l=k.toLowerCase();
       if(groups()[l]){ state.activeFilters=new Set([l]); buildPlaylist(); renderFilters(); show(); }

@@ -19,6 +19,7 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     overflow:hidden; overscroll-behavior:none; position:fixed; inset:0; touch-action:manipulation;}
   button{font-family:inherit; color:inherit; cursor:pointer;}
+  .hidden{display:none !important;}
 
   /* ---- Scène ---- */
   #stage{position:absolute; inset:0; background:#000; display:flex; align-items:center; justify-content:center;}
@@ -27,21 +28,17 @@
     text-align:center; padding:24px; gap:18px;}
   #empty h1{font-size:22px; margin:0; font-weight:600;}
   #empty p{color:var(--muted); margin:0; font-size:15px; line-height:1.5; max-width:340px;}
-  .hidden{display:none !important;}
 
-  /* zones tactiles prev/next/centre */
   #zones{position:absolute; inset:0; z-index:10; display:flex;}
   #zones .z{flex:1; height:100%;}
   #zoneMid{flex:1.2 !important;}
 
-  /* rang doré */
   #rank{position:absolute; top:calc(env(safe-area-inset-top) + 10px); right:14px; z-index:20;
     color:var(--gold); font-size:34px; font-weight:800; min-width:46px; min-height:46px;
     display:flex; align-items:center; justify-content:center; text-shadow:0 2px 6px rgba(0,0,0,.8);
     background:rgba(0,0,0,.25); border-radius:12px; padding:2px 8px;}
   #rank:empty{background:transparent;}
 
-  /* compteur + nom */
   #hud{position:absolute; top:calc(env(safe-area-inset-top) + 12px); left:14px; z-index:20;
     color:#fff; font-size:13px; background:rgba(0,0,0,.35); padding:5px 10px; border-radius:10px;
     max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:opacity .3s;}
@@ -49,12 +46,11 @@
     font-size:60px; opacity:0; transition:opacity .25s; pointer-events:none; text-shadow:0 3px 10px rgba(0,0,0,.7);}
   #pausePill.show{opacity:.9;}
 
-  /* ---- Barre de contrôle ---- */
+  /* ---- Barre ---- */
   #bar{position:absolute; left:0; right:0; bottom:0; z-index:30; height:calc(var(--bar-h) + env(safe-area-inset-bottom));
     padding-bottom:env(safe-area-inset-bottom); background:rgba(20,20,22,.82);
     -webkit-backdrop-filter:blur(18px); backdrop-filter:blur(18px); border-top:1px solid var(--line);
     display:flex; align-items:center; justify-content:space-around; transition:transform .3s, opacity .3s;}
-  #bar.down{transform:translateY(110%); opacity:0;}
   body.immersive #bar{transform:translateY(120%); opacity:0; pointer-events:none;}
   body.immersive #hud{opacity:0; pointer-events:none;}
   .bbtn{background:none; border:0; padding:6px; width:42px; height:46px; border-radius:12px;
@@ -63,7 +59,7 @@
   .bbtn.play{font-size:26px;}
   #rankBtn .cnt{position:absolute; top:2px; right:2px; font-size:11px; color:var(--gold); font-weight:700;}
 
-  /* ---- Panneau (bottom sheet) ---- */
+  /* ---- Panneau ---- */
   #panel{position:absolute; inset:0; z-index:40; background:rgba(0,0,0,.55); display:flex; align-items:flex-end;
     opacity:0; pointer-events:none; transition:opacity .25s;}
   #panel.open{opacity:1; pointer-events:auto;}
@@ -84,8 +80,8 @@
   .row .lbl{font-size:15px;} .row .sub{font-size:12px; color:var(--muted); margin-top:3px;}
   input[type=range]{width:150px; accent-color:var(--accent);}
   .val{font-size:14px; color:var(--muted); min-width:44px; text-align:right;}
+  select{background:var(--panel2); color:#fff; border:1px solid var(--line); border-radius:10px; padding:9px; font-size:15px;}
 
-  /* switch */
   .sw{position:relative; width:50px; height:30px; flex:none;}
   .sw input{opacity:0; width:100%; height:100%; margin:0;}
   .sw .track{position:absolute; inset:0; background:var(--line); border-radius:15px; transition:.2s;}
@@ -93,38 +89,41 @@
   .sw input:checked ~ .track{background:#34c759;}
   .sw input:checked ~ .knob{transform:translateX(20px);}
 
-  .letters{display:flex; flex-wrap:wrap; gap:8px; padding-top:10px;}
-  .lchip{min-width:42px; height:42px; padding:0 10px; border-radius:11px; background:var(--panel2); border:1px solid var(--line);
-    font-size:16px; font-weight:600; text-transform:uppercase; display:flex; align-items:center; justify-content:center; gap:5px;}
-  .lchip.on{background:var(--accent); border-color:var(--accent);}
-  .lchip .n{font-size:11px; color:var(--muted);} .lchip.on .n{color:#fff;}
+  .chips{display:flex; flex-wrap:wrap; gap:8px; padding-top:10px;}
+  .chip{max-width:100%; padding:0 12px; height:40px; border-radius:11px; background:var(--panel2); border:1px solid var(--line);
+    font-size:15px; display:flex; align-items:center; gap:6px; overflow:hidden;}
+  .chip .t{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;}
+  .chip.on{background:var(--accent); border-color:var(--accent);}
+  .chip .n{font-size:11px; color:var(--muted);} .chip.on .n{color:#fff;}
   .allbtn{margin-top:12px; width:100%; padding:12px; border-radius:12px; background:var(--panel2); border:1px solid var(--line); font-size:15px;}
 
   .big{width:100%; padding:15px; border-radius:14px; background:var(--accent); border:0; font-size:17px; font-weight:600; margin-bottom:10px;}
-  .big.sec{background:var(--panel2); border:1px solid var(--line);}
+  .big.danger{background:transparent; border:1px solid var(--danger); color:var(--danger);}
   .hint{font-size:13px; color:var(--muted); line-height:1.5; margin:8px 2px;}
 
   .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:10px; margin-top:10px;}
   .thumb{position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; background:#000; border:1px solid var(--line);}
   .thumb img{width:100%; height:100%; object-fit:cover;}
-  .thumb .tag{position:absolute; left:4px; bottom:4px; background:rgba(0,0,0,.6); font-size:11px; padding:1px 6px; border-radius:6px;}
   .thumb .del{position:absolute; top:3px; right:3px; width:24px; height:24px; border-radius:12px; background:rgba(0,0,0,.6); border:0; color:#fff; font-size:14px; line-height:1;}
-  .grouphdr{font-size:13px; color:var(--muted); margin:16px 2px 2px; text-transform:uppercase; letter-spacing:.5px;}
+  .grouphdr{font-size:13px; color:var(--muted); margin:16px 2px 2px; display:flex; justify-content:space-between; align-items:center;}
+  .grouphdr .ren{background:var(--panel2); border:1px solid var(--line); border-radius:8px; font-size:12px; padding:3px 9px;}
   kbd{background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; font-size:12px;}
   .help-line{padding:7px 0; font-size:14px; display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line);}
 
-  /* ---- Modale nom ---- */
+  /* ---- Modale titre ---- */
   #nameModal{position:absolute; inset:0; z-index:45; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:22px;
     opacity:0; pointer-events:none; transition:opacity .2s;}
   #nameModal.open{opacity:1; pointer-events:auto;}
-  .card{background:var(--panel); border-radius:18px; padding:18px; width:100%; max-width:360px;}
+  .card{background:var(--panel); border-radius:18px; padding:18px; width:100%; max-width:380px; max-height:90%; overflow-y:auto;}
   .card h3{margin:0 0 12px; font-size:17px;}
   #namePreview{width:100%; height:150px; object-fit:contain; background:#000; border-radius:12px; margin-bottom:12px;}
   #nameInput{width:100%; padding:14px; font-size:17px; border-radius:12px; border:1px solid var(--line); background:var(--panel2); color:#fff; margin-bottom:8px;}
   #nameInput:focus{outline:2px solid var(--accent);}
-  .catinfo{font-size:13px; color:var(--muted); min-height:18px; margin-bottom:14px;}
-  .catinfo b{color:var(--gold); font-size:15px;}
-  .card-actions{display:flex; gap:10px;}
+  .existing-lbl{font-size:12px; color:var(--muted); margin:6px 2px 0;}
+  #existingTitles{display:flex; flex-wrap:wrap; gap:7px; margin:8px 0 4px; max-height:120px; overflow-y:auto;}
+  #existingTitles .et{padding:7px 12px; border-radius:20px; background:var(--panel2); border:1px solid var(--line); font-size:14px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  #existingTitles .et.sel{background:var(--accent); border-color:var(--accent);}
+  .card-actions{display:flex; gap:10px; margin-top:12px;}
   .card-actions button{flex:1; padding:13px; border-radius:12px; border:0; font-size:16px; font-weight:600;}
   .btn-cancel{background:var(--panel2); color:#fff;}
   .btn-ok{background:var(--accent); color:#fff;}
@@ -138,13 +137,33 @@
   #rankGrid button{aspect-ratio:1; border-radius:12px; background:var(--panel2); border:1px solid var(--line); font-size:22px; font-weight:700;}
   #rankGrid button.cur{background:var(--gold); color:#000; border-color:var(--gold);}
 
-  /* toast */
   #toast{position:absolute; left:50%; bottom:calc(var(--bar-h) + env(safe-area-inset-bottom) + 20px); transform:translateX(-50%) translateY(20px);
     z-index:50; background:rgba(50,50,52,.95); padding:10px 18px; border-radius:24px; font-size:14px; opacity:0; transition:.25s; pointer-events:none;}
   #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
-  /* zone de collage cachée (fallback appui long) */
   #pasteZone{position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; overflow:hidden;}
+
+  /* ---- Écran de verrouillage / cover ---- */
+  #cover{position:absolute; inset:0; z-index:90; background:#000; display:none;}
+  #cover.show{display:block;}
+  #lock{position:absolute; inset:0; z-index:100; background:#000; display:none; flex-direction:column;
+    align-items:center; justify-content:center; padding:26px; text-align:center;}
+  #lock.show{display:flex;}
+  #lock .logo{font-size:44px; margin-bottom:6px;}
+  #lock h2{font-size:20px; margin:0 0 4px; font-weight:600;}
+  #lock .sub{color:var(--muted); font-size:14px; min-height:20px; margin-bottom:22px;}
+  #dots{display:flex; gap:14px; margin-bottom:30px;}
+  #dots .d{width:15px; height:15px; border-radius:50%; border:2px solid var(--muted);}
+  #dots .d.f{background:#fff; border-color:#fff;}
+  #lock.err #dots{animation:shake .4s;}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(7px)}}
+  #keypad{display:grid; grid-template-columns:repeat(3,76px); gap:16px;}
+  #keypad button{width:76px; height:76px; border-radius:50%; background:var(--panel2); border:1px solid var(--line);
+    font-size:28px; font-weight:500; display:flex; align-items:center; justify-content:center;}
+  #keypad button:active{background:#3a3a3c;}
+  #keypad button.blank{background:transparent; border:0; pointer-events:none;}
+  #keypad button.act{font-size:20px;}
+  #wipeBtn{margin-top:26px; background:none; border:0; color:var(--danger); font-size:14px; padding:10px;}
 </style>
 </head>
 <body>
@@ -153,10 +172,9 @@
   <img id="photo" alt="" class="hidden">
   <div id="empty">
     <h1>📋 Colle une capture d'écran</h1>
-    <p>Sur iPhone&nbsp;: fais une capture, puis appuie sur <b>Coller</b> ci-dessous (ou appui long → Coller).<br>
-       Sur Mac&nbsp;: <kbd>⌘</kbd>+<kbd>V</kbd> n'importe où.</p>
+    <p>Fais une capture, puis appuie sur <b>Coller</b> (ou appui long → Coller). Sur Mac : <kbd>⌘</kbd>+<kbd>V</kbd>.</p>
     <button class="big" style="max-width:280px" id="emptyPaste">📋 Coller une image</button>
-    <p style="font-size:13px">Tu donneras un petit nom à chaque image — sa <b>première lettre</b> définit sa catégorie.</p>
+    <p style="font-size:13px">Chaque image reçoit un <b>titre</b>. Les images d'un même titre forment un groupe.</p>
   </div>
 </div>
 
@@ -175,7 +193,7 @@
   <button class="bbtn" id="btnPrev" title="Précédent">⏮</button>
   <button class="bbtn play" id="btnPlay" title="Lecture/Pause">⏸</button>
   <button class="bbtn" id="btnNext" title="Suivant">⏭</button>
-  <button class="bbtn" id="rankBtn" title="Classer la catégorie">#<span class="cnt"></span></button>
+  <button class="bbtn" id="rankBtn" title="Classer le groupe">#<span class="cnt"></span></button>
   <button class="bbtn" id="btnDel" title="Supprimer l'image">🗑</button>
   <button class="bbtn" id="btnFs" title="Masquer la barre / plein écran">⛶</button>
   <button class="bbtn" id="btnMenu" title="Réglages">⚙️</button>
@@ -193,20 +211,17 @@
       <button class="close-x" id="panelClose">✕</button>
     </div>
     <div class="sheet-body">
-      <!-- Bibliothèque -->
       <div class="tabpage active" id="page-lib">
         <button class="big" id="libPaste">📋 Coller une image</button>
-        <div class="hint">Les images restent en mémoire uniquement et disparaissent à la fermeture. Rien n'est enregistré sur ton téléphone.</div>
+        <div class="hint">🔒 Coffre chiffré. Les images sont conservées sur cet appareil, chiffrées avec ton code. Rien n'est envoyé en ligne.</div>
         <div id="libCount" class="hint"></div>
         <div id="libGrid"></div>
       </div>
-      <!-- Réglages -->
       <div class="tabpage" id="page-set">
         <div class="row">
-          <div><div class="lbl">Délai entre images</div><div class="sub">Durée d'affichage</div></div>
+          <div><div class="lbl">Délai entre images</div></div>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="range" id="setDelay" min="1" max="20" step="1">
-            <span class="val" id="delayVal">5 s</span>
+            <input type="range" id="setDelay" min="1" max="20" step="1"><span class="val" id="delayVal">5 s</span>
           </div>
         </div>
         <div class="row">
@@ -214,63 +229,74 @@
           <label class="sw"><input type="checkbox" id="setRandom"><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
-          <div><div class="lbl">Mode séries</div><div class="sub">N images par catégorie</div></div>
+          <div><div class="lbl">Mode séries</div><div class="sub">N images par groupe</div></div>
           <label class="sw"><input type="checkbox" id="setSeries"><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
           <div><div class="lbl">Taille des séries</div></div>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="range" id="setSeriesSize" min="1" max="50" step="1">
-            <span class="val" id="seriesVal">3</span>
+            <input type="range" id="setSeriesSize" min="1" max="50" step="1"><span class="val" id="seriesVal">3</span>
           </div>
         </div>
         <div class="row">
-          <div><div class="lbl">Mode équitable</div><div class="sub">Chaque catégorie à égalité</div></div>
+          <div><div class="lbl">Mode équitable</div><div class="sub">Chaque groupe à égalité</div></div>
           <label class="sw"><input type="checkbox" id="setFair"><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
-          <div><div class="lbl">Afficher le classement</div><div class="sub">Chiffre doré en haut à droite</div></div>
+          <div><div class="lbl">Afficher le classement</div></div>
           <label class="sw"><input type="checkbox" id="setRank" checked><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
           <div><div class="lbl">Mode immersif</div><div class="sub">Masque la barre · tape au centre pour la revoir</div></div>
           <label class="sw"><input type="checkbox" id="setFull"><span class="track"></span><span class="knob"></span></label>
         </div>
+        <div class="row">
+          <div><div class="lbl">Verrouillage</div><div class="sub">Redemander le code…</div></div>
+          <select id="setLock">
+            <option value="immediate">En quittant l'app</option>
+            <option value="delay">Après 1 min</option>
+            <option value="startup">Au démarrage seulement</option>
+          </select>
+        </div>
         <div style="padding-top:14px">
-          <div class="lbl">Catégories à afficher</div>
-          <div class="letters" id="filterLetters"></div>
-          <button class="allbtn" id="filterAll">Toutes les catégories</button>
+          <div class="lbl">Groupes à afficher</div>
+          <div class="chips" id="filterChips"></div>
+          <button class="allbtn" id="filterAll">Tous les groupes</button>
+        </div>
+        <div style="padding-top:20px">
+          <button class="big danger" id="changePin">Changer le code</button>
+          <button class="big danger" id="lockNow">🔒 Verrouiller maintenant</button>
         </div>
       </div>
-      <!-- Aide -->
       <div class="tabpage" id="page-help">
-        <div class="hint">Gestes tactiles pendant le diaporama&nbsp;:</div>
+        <div class="hint">Gestes pendant le diaporama :</div>
         <div class="help-line"><span>Zone gauche / droite</span><span>Précédent / Suivant</span></div>
         <div class="help-line"><span>Zone centrale (tap)</span><span>Pause / Reprise</span></div>
         <div class="help-line"><span>Balayer ← →</span><span>Précédent / Suivant</span></div>
-        <div class="help-line"><span>Bouton #</span><span>Classer la catégorie (1–9)</span></div>
-        <div class="hint" style="margin-top:16px">Raccourcis clavier (Mac)&nbsp;:</div>
+        <div class="help-line"><span>Bouton #</span><span>Classer le groupe (1–9)</span></div>
+        <div class="hint" style="margin-top:16px">Raccourcis clavier (Mac) :</div>
         <div class="help-line"><span><kbd>Espace</kbd></span><span>Pause / Reprise</span></div>
         <div class="help-line"><span><kbd>←</kbd> <kbd>→</kbd></span><span>Précédent / Suivant</span></div>
         <div class="help-line"><span><kbd>⌘</kbd>+<kbd>V</kbd></span><span>Coller une image</span></div>
-        <div class="help-line"><span><kbd>A</kbd>–<kbd>Z</kbd></span><span>Filtrer par lettre</span></div>
-        <div class="help-line"><span><kbd>0</kbd></span><span>Toutes les catégories</span></div>
-        <div class="help-line"><span><kbd>1</kbd>–<kbd>9</kbd></span><span>Classer la catégorie courante</span></div>
+        <div class="help-line"><span><kbd>0</kbd></span><span>Tous les groupes</span></div>
+        <div class="help-line"><span><kbd>1</kbd>–<kbd>9</kbd></span><span>Classer le groupe courant</span></div>
         <div class="help-line"><span><kbd>↑</kbd></span><span>Afficher/masquer le classement</span></div>
         <div class="help-line"><span><kbd>Suppr</kbd></span><span>Supprimer l'image courante</span></div>
-        <div class="help-line"><span><kbd>F</kbd></span><span>Plein écran</span></div>
+        <div class="help-line"><span><kbd>F</kbd></span><span>Mode immersif</span></div>
+        <div class="hint" style="margin-top:16px">🔒 Sécurité : tes images sont chiffrées (AES-256) avec une clé dérivée de ton code. Sans le code, elles sont illisibles. Code oublié = images perdues, sans récupération possible.</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Modale nom -->
+<!-- Modale titre -->
 <div id="nameModal">
   <div class="card">
-    <h3>Nom de l'image</h3>
+    <h3>Titre de l'image</h3>
     <img id="namePreview" alt="">
-    <input id="nameInput" type="text" placeholder="ex : moto, v, h5…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
-    <div class="catinfo" id="catInfo"></div>
+    <input id="nameInput" type="text" placeholder="ex : vacances, sport…" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done">
+    <div class="existing-lbl" id="existingLbl">Titres existants :</div>
+    <div id="existingTitles"></div>
     <div class="card-actions">
       <button class="btn-cancel" id="nameCancel">Annuler</button>
       <button class="btn-ok" id="nameOk">Ajouter</button>
@@ -282,7 +308,7 @@
 <!-- Rang picker -->
 <div id="rankModal">
   <div class="card">
-    <h3 id="rankTitle">Classer la catégorie</h3>
+    <h3 id="rankTitle">Classer le groupe</h3>
     <div id="rankGrid"></div>
     <div class="card-actions">
       <button class="btn-cancel" id="rankClear">Retirer le rang</button>
@@ -294,438 +320,441 @@
 <div id="toast"></div>
 <div id="pasteZone" contenteditable="true"></div>
 
+<!-- Cover (anti fuite dans l'aperçu multitâche) -->
+<div id="cover"></div>
+
+<!-- Écran de verrouillage -->
+<div id="lock">
+  <div class="logo">🔒</div>
+  <h2 id="lockTitle">Code</h2>
+  <div class="sub" id="lockSub"></div>
+  <div id="dots"></div>
+  <div id="keypad"></div>
+  <button id="wipeBtn" class="hidden">Code oublié ? Tout effacer</button>
+</div>
+
 <script>
 "use strict";
 (function(){
-  // ---------------- État ----------------
+  // ================= Constantes =================
+  const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
+
+  // ================= État =================
   const state = {
-    items: [],            // {id, name, letter, url}
-    order: [],            // playlist courante (items)
+    items: [],            // {id, title, url, type}
+    order: [],
     index: 0,
     delay: 5000,
     random: true,
     seriesMode: false,
     seriesSize: 3,
     fairMode: false,
-    activeFilters: null,  // null = toutes ; Set = catégories choisies
+    activeFilters: null,  // null = tous ; Set de titres
     paused: false,
     showRank: true,
-    groupOrder: [],       // ordre de classement des lettres
+    groupOrder: [],       // ordre de classement des titres
     timer: null,
-    immersive: false,     // masque la barre + le compteur
+    immersive: false,
+    lockPolicy: 'immediate',
+    lastTitle: '',
+    key: null,            // CryptoKey (présent seulement quand déverrouillé)
   };
-  let uid = 1;
 
-  // ---------------- Raccourcis DOM ----------------
   const $ = s => document.querySelector(s);
-  const photo = $('#photo'), empty = $('#empty'), hud = $('#hud'),
-        rankEl = $('#rank'), pausePill = $('#pausePill'), toast = $('#toast');
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const photo=$('#photo'), empty=$('#empty'), hud=$('#hud'), rankEl=$('#rank'),
+        pausePill=$('#pausePill'), toast=$('#toast');
 
-  // ---------------- Utilitaires catégorie ----------------
-  function letterOf(name){
-    const c = (name||'').trim()[0];
-    if(!c) return null;
-    return /\p{L}/u.test(c) ? c.toLowerCase() : null;
+  // ================= IndexedDB =================
+  let dbp=null;
+  function db(){
+    if(dbp) return dbp;
+    dbp=new Promise((res,rej)=>{
+      const r=indexedDB.open(DB_NAME, DB_VER);
+      r.onupgradeneeded=()=>{ const d=r.result;
+        if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta',{keyPath:'k'});
+        if(!d.objectStoreNames.contains('photos')) d.createObjectStore('photos',{keyPath:'id'});
+      };
+      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+    });
+    return dbp;
   }
+  function tx(store, mode){ return db().then(d=>d.transaction(store,mode).objectStore(store)); }
+  function idbGet(store,key){ return tx(store,'readonly').then(s=>new Promise((res,rej)=>{const r=s.get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);})); }
+  function idbGetAll(store){ return tx(store,'readonly').then(s=>new Promise((res,rej)=>{const r=s.getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error);})); }
+  function idbPut(store,val){ return tx(store,'readwrite').then(s=>new Promise((res,rej)=>{const r=s.put(val); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error);})); }
+  function idbDel(store,key){ return tx(store,'readwrite').then(s=>new Promise((res,rej)=>{const r=s.delete(key); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error);})); }
+  function idbClear(store){ return tx(store,'readwrite').then(s=>new Promise((res,rej)=>{const r=s.clear(); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error);})); }
+
+  // ================= Chiffrement =================
+  const subtle = (window.crypto && crypto.subtle) ? crypto.subtle : null;
+  async function deriveKey(pin, salt, iters){
+    const base=await subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
+    return subtle.deriveKey({name:'PBKDF2', salt, iterations:iters, hash:'SHA-256'},
+      base, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']);
+  }
+  async function encBuf(key, buf){
+    const iv=crypto.getRandomValues(new Uint8Array(12));
+    const ct=await subtle.encrypt({name:'AES-GCM', iv}, key, buf);
+    return {iv, ct};
+  }
+  async function decBuf(key, iv, ct){ return subtle.decrypt({name:'AES-GCM', iv}, key, ct); }
+  async function encJSON(key, obj){ return encBuf(key, enc.encode(JSON.stringify(obj))); }
+  async function decJSON(key, iv, ct){ return JSON.parse(dec.decode(await decBuf(key, iv, ct))); }
+
+  // ================= Vault =================
+  async function hasVault(){ return !!(await idbGet('meta','vault')); }
+
+  async function createVault(pin){
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const key=await deriveKey(pin, salt, ITERS);
+    const ver=await encBuf(key, enc.encode(VTOKEN));
+    await idbPut('meta',{k:'vault', salt, iters:ITERS, verIv:ver.iv, verCt:ver.ct});
+    state.key=key;
+    await saveState();
+  }
+  async function tryUnlock(pin){
+    const meta=await idbGet('meta','vault'); if(!meta) return false;
+    try{
+      const key=await deriveKey(pin, meta.salt, meta.iters);
+      const pt=await decBuf(key, meta.verIv, meta.verCt);
+      if(dec.decode(pt)!==VTOKEN) return false;
+      state.key=key; return true;
+    }catch(e){ return false; }
+  }
+  async function changePin(newPin){
+    // Re-chiffre le verifier + re-chiffre tout avec la nouvelle clé
+    const meta=await idbGet('meta','vault');
+    const salt=crypto.getRandomValues(new Uint8Array(16));
+    const newKey=await deriveKey(newPin, salt, ITERS);
+    const ver=await encBuf(newKey, enc.encode(VTOKEN));
+    // re-chiffrer chaque photo (les données sont déjà en clair en mémoire)
+    for(const it of state.items){
+      const resp=await fetch(it.url); const blob=await resp.blob();
+      await savePhotoWithKey(newKey, it, blob);
+    }
+    state.key=newKey;
+    await idbPut('meta',{k:'vault', salt, iters:ITERS, verIv:ver.iv, verCt:ver.ct});
+    await saveState();
+  }
+  async function savePhotoWithKey(key, item, blob){
+    const buf=await blob.arrayBuffer();
+    const d=await encBuf(key, buf);
+    const m=await encJSON(key, {title:item.title, type:blob.type||item.type||'image/png', createdAt:item.createdAt||Date.now()});
+    await idbPut('photos',{id:item.id, metaIv:m.iv, metaCt:m.ct, dataIv:d.iv, dataCt:d.ct});
+  }
+  async function savePhoto(item, blob){ return savePhotoWithKey(state.key, item, blob); }
+
+  async function saveState(){
+    if(!state.key) return;
+    const o={groupOrder:state.groupOrder, delay:state.delay, random:state.random, seriesMode:state.seriesMode,
+             seriesSize:state.seriesSize, fairMode:state.fairMode, showRank:state.showRank,
+             immersive:false, lockPolicy:state.lockPolicy, lastTitle:state.lastTitle};
+    const e=await encJSON(state.key, o);
+    await idbPut('meta',{k:'state', iv:e.iv, ct:e.ct});
+  }
+  async function loadAll(){
+    // Réglages
+    const st=await idbGet('meta','state');
+    if(st){ try{ const o=await decJSON(state.key, st.iv, st.ct);
+      state.groupOrder=o.groupOrder||[]; state.delay=o.delay??5000; state.random=o.random??true;
+      state.seriesMode=!!o.seriesMode; state.seriesSize=o.seriesSize||3; state.fairMode=!!o.fairMode;
+      state.showRank=o.showRank??true; state.lockPolicy=o.lockPolicy||'immediate'; state.lastTitle=o.lastTitle||'';
+    }catch(e){} }
+    // Photos
+    state.items=[];
+    const recs=await idbGetAll('photos');
+    for(const r of recs){
+      try{
+        const m=await decJSON(state.key, r.metaIv, r.metaCt);
+        const buf=await decBuf(state.key, r.dataIv, r.dataCt);
+        const blob=new Blob([buf], {type:m.type||'image/png'});
+        const url=URL.createObjectURL(blob);
+        state.items.push({id:r.id, title:m.title||'', url, type:m.type, createdAt:m.createdAt});
+      }catch(e){}
+    }
+  }
+  async function wipeVault(){
+    try{ await idbClear('photos'); await idbClear('meta'); }catch(e){}
+    for(const it of state.items){ try{URL.revokeObjectURL(it.url);}catch(e){} }
+    state.items=[]; state.order=[]; state.key=null;
+    location.reload();
+  }
+
+  // ================= Titres / groupes =================
+  function titleOf(it){ return (it.title||'').trim(); }
   function groups(){
-    const g = {};
-    for(const it of state.items){ if(it.letter){ (g[it.letter] ||= []).push(it); } }
-    const out = {};
-    for(const k of Object.keys(g).sort()) out[k] = g[k];
+    const g={};
+    for(const it of state.items){ const t=titleOf(it); if(t){ (g[t] ||= []).push(it); } }
+    const out={};
+    for(const k of Object.keys(g).sort((a,b)=>a.localeCompare(b))) out[k]=g[k];
     return out;
   }
-  function rankMap(){
-    const m = {};
-    state.groupOrder.forEach((l,i)=> m[l] = i+1);
-    return m;
-  }
+  function allTitles(){ return Object.keys(groups()); }
+  function rankMap(){ const m={}; state.groupOrder.forEach((t,i)=>m[t]=i+1); return m; }
   function syncGroups(){
-    const letters = Object.keys(groups());
-    state.groupOrder = state.groupOrder.filter(l=>letters.includes(l));
-    for(const l of letters) if(!state.groupOrder.includes(l)) state.groupOrder.push(l);
+    const titles=allTitles();
+    state.groupOrder=state.groupOrder.filter(t=>titles.includes(t));
+    for(const t of titles) if(!state.groupOrder.includes(t)) state.groupOrder.push(t);
     if(state.activeFilters){
-      state.activeFilters = new Set([...state.activeFilters].filter(l=>letters.includes(l)));
-      if(state.activeFilters.size===0) state.activeFilters = null;
+      state.activeFilters=new Set([...state.activeFilters].filter(t=>titles.includes(t)));
+      if(state.activeFilters.size===0) state.activeFilters=null;
     }
   }
-
   function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
-  // ---------------- Construction de la playlist (cf. prepare_current_list) ----------------
+  // ================= Playlist =================
   function buildPlaylist(){
-    const g = groups();
-    const keys = Object.keys(g);
-    let list;
-
+    const g=groups(); const keys=Object.keys(g); let list;
     if(state.fairMode && state.activeFilters===null && keys.length){
-      const counts = keys.map(k=>g[k].length);
-      const minCount = Math.min(...counts);
-      const cycle = [];
-      for(const k of keys){ const grp = shuffle(g[k].slice()); cycle.push(...grp.slice(0,minCount)); }
-      list = shuffle(cycle);
-    }
-    else if(state.seriesMode && state.activeFilters===null && keys.length){
-      list = [];
-      for(const k of keys){
-        let grp = g[k].slice();
-        if(state.random) shuffle(grp);
-        list.push(...grp.slice(0, state.seriesSize));
-      }
-    }
-    else {
+      const minCount=Math.min(...keys.map(k=>g[k].length));
+      const cycle=[];
+      for(const k of keys){ cycle.push(...shuffle(g[k].slice()).slice(0,minCount)); }
+      list=shuffle(cycle);
+    } else if(state.seriesMode && state.activeFilters===null && keys.length){
+      list=[];
+      for(const k of keys){ let grp=g[k].slice(); if(state.random) shuffle(grp); list.push(...grp.slice(0,state.seriesSize)); }
+    } else {
       let base;
-      if(state.activeFilters===null) base = state.items.slice();
-      else { base = []; for(const l of state.activeFilters) if(g[l]) base.push(...g[l]); }
-      if(state.random) shuffle(base);
-      else base.sort((a,b)=> a.name.localeCompare(b.name));
-      list = base;
+      if(state.activeFilters===null) base=state.items.slice();
+      else { base=[]; for(const t of state.activeFilters) if(g[t]) base.push(...g[t]); }
+      if(state.random) shuffle(base); else base.sort((a,b)=>titleOf(a).localeCompare(titleOf(b)));
+      list=base;
     }
-    state.order = list;
-    state.index = 0;
+    state.order=list; state.index=0;
   }
 
-  // ---------------- Affichage ----------------
+  // ================= Affichage =================
   function clearTimer(){ if(state.timer){ clearTimeout(state.timer); state.timer=null; } }
-  function currentItem(){ return state.order[state.index] || null; }
-
+  function currentItem(){ return state.order[state.index]||null; }
   function show(){
     clearTimer();
-    if(!state.order.length){
-      photo.classList.add('hidden'); empty.classList.remove('hidden');
-      hud.classList.add('hidden'); updateRank(null); return;
-    }
+    if(!state.order.length){ photo.classList.add('hidden'); empty.classList.remove('hidden'); hud.classList.add('hidden'); updateRank(null); updateRankCount(); return; }
     empty.classList.add('hidden'); photo.classList.remove('hidden');
-    const it = currentItem();
-    photo.src = it.url;
-    hud.classList.remove('hidden');
-    hud.textContent = (it.name || '(sans nom)') + '  ·  ' + (state.index+1) + '/' + state.order.length;
-    updateRank(it.letter);
-    updateRankCount();
-    if(!state.paused) state.timer = setTimeout(next, state.delay);
+    const it=currentItem(); photo.src=it.url;
+    hud.classList.remove('hidden'); hud.textContent=(titleOf(it)||'(sans titre)')+'  ·  '+(state.index+1)+'/'+state.order.length;
+    updateRank(titleOf(it)); updateRankCount();
+    if(!state.paused) state.timer=setTimeout(next, state.delay);
   }
-
-  function next(){
-    if(!state.order.length) return;
-    clearTimer();
-    const ni = (state.index+1) % state.order.length;
-    if(state.fairMode && state.activeFilters===null && ni===0) buildPlaylist();
-    else state.index = ni;
-    show();
-  }
-  function prev(){
-    if(!state.order.length) return;
-    clearTimer();
-    state.index = (state.index-1+state.order.length) % state.order.length;
-    show();
-  }
-
-  function updateRank(letter){
-    if(!state.showRank){ rankEl.textContent=''; return; }
-    const r = rankMap()[letter];
-    rankEl.textContent = r ? String(r) : '';
-  }
-
-  function togglePause(){
-    state.paused = !state.paused;
-    $('#btnPlay').textContent = state.paused ? '▶️' : '⏸';
-    pausePill.textContent = state.paused ? '⏸' : '▶️';
-    pausePill.classList.add('show');
-    setTimeout(()=>pausePill.classList.remove('show'), 500);
-    if(state.paused) clearTimer(); else show();
-  }
-
+  function next(){ if(!state.order.length) return; clearTimer();
+    const ni=(state.index+1)%state.order.length;
+    if(state.fairMode && state.activeFilters===null && ni===0) buildPlaylist(); else state.index=ni; show(); }
+  function prev(){ if(!state.order.length) return; clearTimer();
+    state.index=(state.index-1+state.order.length)%state.order.length; show(); }
+  function updateRank(title){ if(!state.showRank){ rankEl.textContent=''; return; } const r=rankMap()[title]; rankEl.textContent=r?String(r):''; }
+  function togglePause(){ state.paused=!state.paused; $('#btnPlay').textContent=state.paused?'▶️':'⏸';
+    pausePill.textContent=state.paused?'⏸':'▶️'; pausePill.classList.add('show'); setTimeout(()=>pausePill.classList.remove('show'),500);
+    if(state.paused) clearTimer(); else show(); }
   function refresh(){ syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount(); show(); }
 
-  // ---------------- Ajout / suppression ----------------
-  function addItem(name, url){
-    const it = { id: uid++, name: name||'', letter: letterOf(name), url };
+  // ================= Ajout / suppression =================
+  async function addItem(title, blob, url){
+    const it={id:crypto.randomUUID(), title:(title||'').trim(), url, type:blob.type||'image/png', createdAt:Date.now()};
     state.items.push(it);
+    state.lastTitle=it.title || state.lastTitle;
+    try{ await savePhoto(it, blob); await saveState(); }catch(e){ showToast('Erreur de chiffrement'); }
     refresh();
-    showToast(it.letter ? ('Ajouté · catégorie '+it.letter.toUpperCase()) : 'Ajouté (sans catégorie)');
+    showToast(it.title ? ('Ajouté · '+it.title) : 'Ajouté (sans titre)');
   }
-  function removeItem(id){
-    const i = state.items.findIndex(x=>x.id===id);
-    if(i<0) return;
+  async function removeItem(id){
+    const i=state.items.findIndex(x=>x.id===id); if(i<0) return;
     try{ URL.revokeObjectURL(state.items[i].url); }catch(e){}
     state.items.splice(i,1);
-    // ajuster index courant si besoin
+    try{ await idbDel('photos', id); await saveState(); }catch(e){}
     refresh();
   }
-  function deleteCurrent(){
-    const it = currentItem(); if(!it) return;
-    const keepIndex = state.index;
+  async function deleteCurrent(){
+    const it=currentItem(); if(!it) return;
+    const keep=state.index;
     try{ URL.revokeObjectURL(it.url); }catch(e){}
-    state.items = state.items.filter(x=>x.id!==it.id);
+    state.items=state.items.filter(x=>x.id!==it.id);
+    try{ await idbDel('photos', it.id); await saveState(); }catch(e){}
     syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount();
-    state.index = state.order.length ? Math.min(keepIndex, state.order.length-1) : 0;
-    show();
+    state.index=state.order.length?Math.min(keep, state.order.length-1):0; show();
+  }
+  async function renameGroup(oldTitle){
+    const nv=prompt('Nouveau titre pour le groupe « '+oldTitle+' » :', oldTitle);
+    if(nv===null) return; const nt=nv.trim(); if(!nt || nt===oldTitle) return;
+    const gi=state.groupOrder.indexOf(oldTitle);
+    for(const it of state.items){ if(titleOf(it)===oldTitle){ it.title=nt;
+      try{ const b=await (await fetch(it.url)).blob(); await savePhoto(it, b); }catch(e){} } }
+    if(gi>=0){ if(!state.groupOrder.includes(nt)) state.groupOrder[gi]=nt; else state.groupOrder.splice(gi,1); }
+    if(state.lastTitle===oldTitle) state.lastTitle=nt;
+    await saveState(); refresh(); showToast('Groupe renommé');
   }
 
-  // ---------------- Classement ----------------
+  // ================= Classement =================
   function assignRank(pos){
-    const it = currentItem();
-    if(!it || !it.letter){ showToast('Cette image n\'a pas de catégorie'); return; }
-    const go = state.groupOrder.filter(l=>l!==it.letter);
-    const idx = Math.min(Math.max(pos-1,0), go.length);
-    go.splice(idx,0,it.letter);
-    for(const l of Object.keys(groups())) if(!go.includes(l)) go.push(l);
-    state.groupOrder = go;
-    updateRank(it.letter); updateRankCount();
-    showToast('Catégorie '+it.letter.toUpperCase()+' classée #'+(idx+1));
+    const it=currentItem(); const t=it&&titleOf(it);
+    if(!t){ showToast('Cette image n\'a pas de titre'); return; }
+    const go=state.groupOrder.filter(x=>x!==t);
+    const idx=Math.min(Math.max(pos-1,0), go.length); go.splice(idx,0,t);
+    for(const x of allTitles()) if(!go.includes(x)) go.push(x);
+    state.groupOrder=go; updateRank(t); updateRankCount(); saveState();
+    showToast('« '+t+' » classé #'+(idx+1));
   }
-  function clearRank(){
-    const it = currentItem();
-    if(!it || !it.letter) return;
-    // remet la lettre en fin => rang le plus bas ; pour "retirer" on la place après toutes les autres
-    state.groupOrder = state.groupOrder.filter(l=>l!==it.letter);
-    state.groupOrder.push(it.letter);
-    updateRank(it.letter); updateRankCount();
-  }
-  function updateRankCount(){
-    const it = currentItem();
-    const r = it ? rankMap()[it.letter] : null;
-    $('#rankBtn .cnt').textContent = r ? r : '';
-  }
+  function clearRank(){ const it=currentItem(); const t=it&&titleOf(it); if(!t) return;
+    state.groupOrder=state.groupOrder.filter(x=>x!==t); state.groupOrder.push(t); updateRank(t); updateRankCount(); saveState(); }
+  function updateRankCount(){ const it=currentItem(); const r=it?rankMap()[titleOf(it)]:null; $('#rankBtn .cnt').textContent=r?r:''; }
 
-  // ---------------- File d'images à nommer ----------------
-  let nameQueue = [];      // {url}
-  let nameCurrent = null;
-  const nameModal = $('#nameModal'), nameInput = $('#nameInput'),
-        namePreview = $('#namePreview'), catInfo = $('#catInfo'), queueInfo = $('#queueInfo');
-
-  function queueBlobs(blobs){
-    for(const b of blobs){ if(b) nameQueue.push(URL.createObjectURL(b)); }
-    if(!nameCurrent) nextName();
-  }
+  // ================= File de nommage =================
+  let nameQueue=[]; let nameCur=null; // {blob,url}
+  const nameModal=$('#nameModal'), nameInput=$('#nameInput'), namePreview=$('#namePreview'), queueInfo=$('#queueInfo');
+  function queueBlobs(blobs){ for(const b of blobs){ if(b) nameQueue.push({blob:b, url:URL.createObjectURL(b)}); } if(!nameCur) nextName(); }
   function nextName(){
-    if(!nameQueue.length){ nameModal.classList.remove('open'); nameCurrent=null; return; }
-    nameCurrent = nameQueue.shift();
-    namePreview.src = nameCurrent;
-    nameInput.value = '';
-    updateCatInfo();
-    queueInfo.textContent = nameQueue.length ? ('+'+nameQueue.length+' autre(s) en attente') : '';
+    if(!nameQueue.length){ nameModal.classList.remove('open'); nameCur=null; return; }
+    nameCur=nameQueue.shift(); namePreview.src=nameCur.url;
+    nameInput.value=state.lastTitle||'';
+    renderExisting();
+    queueInfo.textContent=nameQueue.length?('+'+nameQueue.length+' autre(s) en attente'):'';
     nameModal.classList.add('open');
-    setTimeout(()=>{ try{ nameInput.focus(); }catch(e){} }, 120);
+    setTimeout(()=>{ try{ nameInput.focus(); nameInput.select(); }catch(e){} }, 120);
   }
-  function updateCatInfo(){
-    const l = letterOf(nameInput.value);
-    catInfo.innerHTML = l ? ('Catégorie : <b>'+l.toUpperCase()+'</b>')
-                          : 'Aucune lettre → l\'image ne sera dans aucune catégorie';
+  function renderExisting(){
+    const box=$('#existingTitles'); const titles=allTitles();
+    $('#existingLbl').style.display = titles.length ? '' : 'none';
+    box.innerHTML='';
+    for(const t of titles){
+      const b=document.createElement('button'); b.className='et'+(nameInput.value.trim()===t?' sel':'');
+      b.textContent=t; b.addEventListener('click', ()=>{ nameInput.value=t; renderExisting(); });
+      box.appendChild(b);
+    }
   }
-  function confirmName(){
-    if(!nameCurrent) return;
-    addItem(nameInput.value.trim(), nameCurrent);
-    nameCurrent = null;
+  async function confirmName(){
+    if(!nameCur) return;
+    const {blob,url}=nameCur; nameCur=null;
+    await addItem(nameInput.value, blob, url);
     nextName();
   }
-  function cancelName(){
-    if(nameCurrent){ try{ URL.revokeObjectURL(nameCurrent); }catch(e){} nameCurrent=null; }
-    nextName();
-  }
-  nameInput.addEventListener('input', updateCatInfo);
+  function cancelName(){ if(nameCur){ try{URL.revokeObjectURL(nameCur.url);}catch(e){} nameCur=null; } nextName(); }
+  nameInput.addEventListener('input', renderExisting);
   nameInput.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); confirmName(); } });
   $('#nameOk').addEventListener('click', confirmName);
   $('#nameCancel').addEventListener('click', cancelName);
 
-  // ---------------- Collage ----------------
-  function blobsFromDataTransfer(dt){
-    const out = [];
-    if(!dt) return out;
-    const items = dt.items ? Array.from(dt.items) : [];
+  // ================= Collage =================
+  function blobsFromDT(dt){ const out=[]; if(!dt) return out;
+    const items=dt.items?Array.from(dt.items):[];
     for(const it of items){ if(it.kind==='file' && it.type.startsWith('image/')){ const f=it.getAsFile(); if(f) out.push(f); } }
     if(!out.length && dt.files){ for(const f of dt.files) if(f.type.startsWith('image/')) out.push(f); }
-    return out;
-  }
-
-  // 1) Événement paste global (⌘V Mac + appui long → Coller iOS) — pas de HTTPS requis
+    return out; }
   document.addEventListener('paste', e=>{
-    const blobs = blobsFromDataTransfer(e.clipboardData);
-    if(blobs.length){ e.preventDefault(); queueBlobs(blobs); }
-    else { setTimeout(scanPasteZone, 60); } // fallback : image insérée dans la zone
+    if(state.key===null) return; // verrouillé
+    const blobs=blobsFromDT(e.clipboardData);
+    if(blobs.length){ e.preventDefault(); queueBlobs(blobs); } else { setTimeout(scanPasteZone,60); }
   });
-
-  // Zone contenteditable de secours : si iOS insère un <img>, on le récupère
-  const pasteZone = $('#pasteZone');
-  function scanPasteZone(){
-    const imgs = pasteZone.querySelectorAll('img');
-    if(!imgs.length){ pasteZone.innerHTML=''; return; }
-    let n=0;
-    imgs.forEach(im=>{
-      const src = im.src;
-      if(src){ fetch(src).then(r=>r.blob()).then(b=>queueBlobs([b])).catch(()=>{}); n++; }
-    });
-    pasteZone.innerHTML='';
-    if(n) showToast('Image collée');
-  }
-  pasteZone.addEventListener('input', ()=> setTimeout(scanPasteZone, 30));
-
-  // 2) Bouton Coller : API presse-papier (HTTPS/standalone) sinon on arme la zone
+  const pasteZone=$('#pasteZone');
+  function scanPasteZone(){ const imgs=pasteZone.querySelectorAll('img'); if(!imgs.length){ pasteZone.innerHTML=''; return; }
+    imgs.forEach(im=>{ const src=im.src; if(src) fetch(src).then(r=>r.blob()).then(b=>queueBlobs([b])).catch(()=>{}); });
+    pasteZone.innerHTML=''; }
+  pasteZone.addEventListener('input', ()=>setTimeout(scanPasteZone,30));
   async function pasteFromButton(){
+    if(state.key===null) return;
     if(navigator.clipboard && navigator.clipboard.read){
-      try{
-        const data = await navigator.clipboard.read();
-        const blobs = [];
-        for(const item of data){
-          const type = item.types.find(t=>t.startsWith('image/'));
-          if(type){ blobs.push(await item.getType(type)); }
-        }
-        if(blobs.length){ queueBlobs(blobs); return; }
-        showToast('Aucune image dans le presse-papier');
-        return;
-      }catch(err){ /* non autorisé / non sécurisé → fallback */ }
+      try{ const data=await navigator.clipboard.read(); const blobs=[];
+        for(const item of data){ const type=item.types.find(t=>t.startsWith('image/')); if(type) blobs.push(await item.getType(type)); }
+        if(blobs.length){ queueBlobs(blobs); return; } showToast('Aucune image dans le presse-papier'); return;
+      }catch(err){}
     }
-    // Fallback : focus zone éditable, l'utilisateur fait « Coller »
-    pasteZone.style.pointerEvents='auto'; pasteZone.style.opacity='0';
-    pasteZone.focus();
-    showToast('Appuie longuement puis « Coller »');
+    pasteZone.style.pointerEvents='auto'; pasteZone.focus(); showToast('Appuie longuement puis « Coller »');
     setTimeout(()=>{ pasteZone.style.pointerEvents='none'; }, 6000);
   }
 
-  // ---------------- Panneau / réglages ----------------
-  const panel = $('#panel');
-  function openPanel(tab){
-    panel.classList.add('open');
-    if(tab) selectTab(tab);
-    renderLib(); renderFilters(); syncSettingUI();
-  }
+  // ================= Panneau =================
+  const panel=$('#panel');
+  function openPanel(tab){ panel.classList.add('open'); if(tab) selectTab(tab); renderLib(); renderFilters(); syncSettingUI(); }
   function closePanel(){ panel.classList.remove('open'); }
-  function selectTab(name){
-    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
-    document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active', p.id==='page-'+name));
-  }
-  document.querySelectorAll('.tab').forEach(t=> t.addEventListener('click', ()=>selectTab(t.dataset.tab)));
+  function selectTab(name){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
+    document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active',p.id==='page-'+name)); }
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>selectTab(t.dataset.tab)));
   $('#panelClose').addEventListener('click', closePanel);
   panel.addEventListener('click', e=>{ if(e.target===panel) closePanel(); });
 
   function syncSettingUI(){
-    $('#setDelay').value = state.delay/1000; $('#delayVal').textContent = (state.delay/1000)+' s';
-    $('#setRandom').checked = state.random;
-    $('#setSeries').checked = state.seriesMode;
-    $('#setSeriesSize').value = state.seriesSize; $('#seriesVal').textContent = state.seriesSize;
-    $('#setFair').checked = state.fairMode;
-    $('#setRank').checked = state.showRank;
-    $('#setFull').checked = state.immersive;
+    $('#setDelay').value=state.delay/1000; $('#delayVal').textContent=(state.delay/1000)+' s';
+    $('#setRandom').checked=state.random; $('#setSeries').checked=state.seriesMode;
+    $('#setSeriesSize').value=state.seriesSize; $('#seriesVal').textContent=state.seriesSize;
+    $('#setFair').checked=state.fairMode; $('#setRank').checked=state.showRank;
+    $('#setFull').checked=state.immersive; $('#setLock').value=state.lockPolicy;
   }
-
-  $('#setDelay').addEventListener('input', e=>{ state.delay=+e.target.value*1000; $('#delayVal').textContent=(+e.target.value)+' s'; });
-  $('#setRandom').addEventListener('change', e=>{ state.random=e.target.checked; buildPlaylist(); show(); });
-  $('#setSeries').addEventListener('change', e=>{
-    state.seriesMode=e.target.checked;
-    if(state.seriesMode && state.fairMode){ state.fairMode=false; $('#setFair').checked=false; }
-    buildPlaylist(); show();
-  });
-  $('#setSeriesSize').addEventListener('input', e=>{ state.seriesSize=+e.target.value; $('#seriesVal').textContent=e.target.value; if(state.seriesMode){ buildPlaylist(); show(); } });
-  $('#setFair').addEventListener('change', e=>{
-    state.fairMode=e.target.checked;
-    if(state.fairMode && state.seriesMode){ state.seriesMode=false; $('#setSeries').checked=false; }
-    buildPlaylist(); show();
-  });
-  $('#setRank').addEventListener('change', e=>{ state.showRank=e.target.checked; updateRank(currentItem()?.letter); });
+  $('#setDelay').addEventListener('input', e=>{ state.delay=+e.target.value*1000; $('#delayVal').textContent=(+e.target.value)+' s'; saveState(); });
+  $('#setRandom').addEventListener('change', e=>{ state.random=e.target.checked; buildPlaylist(); show(); saveState(); });
+  $('#setSeries').addEventListener('change', e=>{ state.seriesMode=e.target.checked; if(state.seriesMode&&state.fairMode){state.fairMode=false;$('#setFair').checked=false;} buildPlaylist(); show(); saveState(); });
+  $('#setSeriesSize').addEventListener('input', e=>{ state.seriesSize=+e.target.value; $('#seriesVal').textContent=e.target.value; if(state.seriesMode){buildPlaylist();show();} saveState(); });
+  $('#setFair').addEventListener('change', e=>{ state.fairMode=e.target.checked; if(state.fairMode&&state.seriesMode){state.seriesMode=false;$('#setSeries').checked=false;} buildPlaylist(); show(); saveState(); });
+  $('#setRank').addEventListener('change', e=>{ state.showRank=e.target.checked; updateRank(titleOf(currentItem()||{})); saveState(); });
   $('#setFull').addEventListener('change', e=>{ setImmersive(e.target.checked); });
+  $('#setLock').addEventListener('change', e=>{ state.lockPolicy=e.target.value; saveState(); });
+  $('#lockNow').addEventListener('click', ()=>{ closePanel(); doLock(); });
+  $('#changePin').addEventListener('click', startChangePin);
 
   function renderFilters(){
-    const box = $('#filterLetters'); box.innerHTML='';
-    const g = groups(); const letters = Object.keys(g);
-    if(!letters.length){ box.innerHTML = '<div class="hint">Aucune catégorie pour l\'instant.</div>'; return; }
-    for(const l of letters){
-      const on = state.activeFilters===null || state.activeFilters.has(l);
-      const chip = document.createElement('button');
-      chip.className = 'lchip'+(on?' on':'');
-      chip.innerHTML = l.toUpperCase()+' <span class="n">'+g[l].length+'</span>';
-      chip.addEventListener('click', ()=>toggleFilter(l));
-      box.appendChild(chip);
+    const box=$('#filterChips'); box.innerHTML=''; const g=groups(); const titles=Object.keys(g);
+    if(!titles.length){ box.innerHTML='<div class="hint">Aucun groupe pour l\'instant.</div>'; return; }
+    for(const t of titles){
+      const on=state.activeFilters===null || state.activeFilters.has(t);
+      const chip=document.createElement('button'); chip.className='chip'+(on?' on':'');
+      chip.innerHTML='<span class="t">'+escapeHtml(t)+'</span> <span class="n">'+g[t].length+'</span>';
+      chip.addEventListener('click', ()=>toggleFilter(t)); box.appendChild(chip);
     }
   }
-  function toggleFilter(letter){
-    const all = Object.keys(groups());
-    let sel;
-    if(state.activeFilters===null) sel = new Set(all);        // tout affiché → on part de tout
-    else sel = new Set(state.activeFilters);
-    if(sel.has(letter)) sel.delete(letter); else sel.add(letter);
-    if(sel.size===0) state.activeFilters = new Set();          // aucune
-    else if(sel.size===all.length) state.activeFilters = null; // toutes
-    else state.activeFilters = sel;
-    if(state.activeFilters!==null && state.fairMode){ /* équitable ignoré avec filtre */ }
+  function toggleFilter(title){
+    const all=allTitles(); let sel;
+    if(state.activeFilters===null) sel=new Set(all); else sel=new Set(state.activeFilters);
+    if(sel.has(title)) sel.delete(title); else sel.add(title);
+    if(sel.size===0) state.activeFilters=new Set(); else if(sel.size===all.length) state.activeFilters=null; else state.activeFilters=sel;
     buildPlaylist(); renderFilters(); show();
   }
   $('#filterAll').addEventListener('click', ()=>{ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); });
 
   function renderLib(){
-    const grid = $('#libGrid'); grid.innerHTML='';
-    $('#libCount').textContent = state.items.length ? (state.items.length+' image(s) en mémoire') : 'Aucune image pour l\'instant.';
+    const grid=$('#libGrid'); grid.innerHTML='';
+    $('#libCount').textContent=state.items.length?(state.items.length+' image(s) dans le coffre'):'Aucune image pour l\'instant.';
     if(!state.items.length) return;
-    const g = groups();
-    const noCat = state.items.filter(x=>!x.letter);
-    const order = [...Object.keys(g), ...(noCat.length?['_none']:[])];
+    const g=groups(); const noCat=state.items.filter(x=>!titleOf(x));
+    const order=[...Object.keys(g), ...(noCat.length?['_none']:[])];
     for(const key of order){
-      const list = key==='_none' ? noCat : g[key];
-      const hdr = document.createElement('div'); hdr.className='grouphdr';
-      hdr.textContent = key==='_none' ? 'Sans catégorie' : ('Catégorie '+key.toUpperCase()+' · '+list.length);
+      const list=key==='_none'?noCat:g[key];
+      const hdr=document.createElement('div'); hdr.className='grouphdr';
+      const label=document.createElement('span'); label.textContent=(key==='_none'?'Sans titre':key)+' · '+list.length; hdr.appendChild(label);
+      if(key!=='_none'){ const rb=document.createElement('button'); rb.className='ren'; rb.textContent='Renommer'; rb.addEventListener('click',()=>renameGroup(key)); hdr.appendChild(rb); }
       grid.appendChild(hdr);
-      const wrap = document.createElement('div'); wrap.className='grid';
-      for(const it of list){
-        const t = document.createElement('div'); t.className='thumb';
-        t.innerHTML = '<img src="'+it.url+'"><span class="tag">'+escapeHtml(it.name||'—')+'</span><button class="del">✕</button>';
-        t.querySelector('.del').addEventListener('click', ()=>removeItem(it.id));
-        wrap.appendChild(t);
-      }
+      const wrap=document.createElement('div'); wrap.className='grid';
+      for(const it of list){ const t=document.createElement('div'); t.className='thumb';
+        t.innerHTML='<img src="'+it.url+'"><button class="del">✕</button>';
+        t.querySelector('.del').addEventListener('click',()=>removeItem(it.id)); wrap.appendChild(t); }
       grid.appendChild(wrap);
     }
   }
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
-  // ---------------- Rang picker ----------------
-  const rankModal = $('#rankModal');
+  // ================= Rang picker =================
+  const rankModal=$('#rankModal');
   function openRankPicker(){
-    const it = currentItem();
-    if(!it || !it.letter){ showToast('Cette image n\'a pas de catégorie'); return; }
-    $('#rankTitle').textContent = 'Classer la catégorie '+it.letter.toUpperCase();
-    const grid = $('#rankGrid'); grid.innerHTML='';
-    const cur = rankMap()[it.letter];
-    for(let i=1;i<=9;i++){
-      const b=document.createElement('button');
-      b.textContent=i; if(i===cur) b.classList.add('cur');
-      b.addEventListener('click', ()=>{ assignRank(i); rankModal.classList.remove('open'); });
-      grid.appendChild(b);
-    }
+    const it=currentItem(); const t=it&&titleOf(it); if(!t){ showToast('Cette image n\'a pas de titre'); return; }
+    $('#rankTitle').textContent='Classer « '+t+' »';
+    const grid=$('#rankGrid'); grid.innerHTML=''; const cur=rankMap()[t];
+    for(let i=1;i<=9;i++){ const b=document.createElement('button'); b.textContent=i; if(i===cur) b.classList.add('cur');
+      b.addEventListener('click',()=>{ assignRank(i); rankModal.classList.remove('open'); }); grid.appendChild(b); }
     rankModal.classList.add('open');
   }
-  $('#rankCancel').addEventListener('click', ()=>rankModal.classList.remove('open'));
-  $('#rankClear').addEventListener('click', ()=>{ clearRank(); rankModal.classList.remove('open'); });
+  $('#rankCancel').addEventListener('click',()=>rankModal.classList.remove('open'));
+  $('#rankClear').addEventListener('click',()=>{ clearRank(); rankModal.classList.remove('open'); });
   rankModal.addEventListener('click', e=>{ if(e.target===rankModal) rankModal.classList.remove('open'); });
 
-  // ---------------- Plein écran / mode immersif ----------------
-  function setFullscreen(on){
-    try{
-      if(on){ (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen||function(){}).call(document.documentElement); }
-      else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
-    }catch(e){}
-  }
-  let chromeTimer = null;
-  function setImmersive(on){
-    state.immersive = on;
-    clearTimeout(chromeTimer);
-    document.body.classList.toggle('immersive', on);
-    const s = $('#setFull'); if(s) s.checked = on;
-    try{ setFullscreen(on); }catch(e){}
-  }
-  // Réaffiche temporairement la barre en mode immersif (auto-masquage après 4 s)
-  function revealChrome(){
-    clearTimeout(chromeTimer);
-    document.body.classList.remove('immersive');
-    if(state.immersive){
-      chromeTimer = setTimeout(()=>{ if(state.immersive) document.body.classList.add('immersive'); }, 4000);
-    }
-  }
+  // ================= Immersif =================
+  function setFullscreen(on){ try{ if(on){(document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen||function(){}).call(document.documentElement);} else {(document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document);} }catch(e){} }
+  let chromeTimer=null;
+  function setImmersive(on){ state.immersive=on; clearTimeout(chromeTimer); document.body.classList.toggle('immersive',on);
+    const s=$('#setFull'); if(s) s.checked=on; try{ setFullscreen(on); }catch(e){} }
+  function revealChrome(){ clearTimeout(chromeTimer); document.body.classList.remove('immersive');
+    if(state.immersive) chromeTimer=setTimeout(()=>{ if(state.immersive) document.body.classList.add('immersive'); },4000); }
 
-  // ---------------- Toast ----------------
+  // ================= Toast =================
   let toastT=null;
-  function showToast(msg){
-    toast.textContent=msg; toast.classList.add('show');
-    clearTimeout(toastT); toastT=setTimeout(()=>toast.classList.remove('show'), 1800);
-  }
+  function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>toast.classList.remove('show'),1800); }
 
-  // ---------------- Contrôles / gestes ----------------
+  // ================= Contrôles =================
   $('#btnPaste').addEventListener('click', pasteFromButton);
   $('#emptyPaste').addEventListener('click', pasteFromButton);
   $('#libPaste').addEventListener('click', pasteFromButton);
@@ -733,56 +762,120 @@
   $('#btnNext').addEventListener('click', next);
   $('#btnPlay').addEventListener('click', togglePause);
   $('#btnDel').addEventListener('click', deleteCurrent);
-  $('#btnFs').addEventListener('click', ()=> setImmersive(!state.immersive));
+  $('#btnFs').addEventListener('click', ()=>setImmersive(!state.immersive));
   $('#btnMenu').addEventListener('click', ()=>openPanel('set'));
   $('#rankBtn').addEventListener('click', openRankPicker);
   rankEl.addEventListener('click', openRankPicker);
-
-  // zones tactiles
   $('#zonePrev').addEventListener('click', prev);
   $('#zoneNext').addEventListener('click', next);
-  $('#zoneMid').addEventListener('click', ()=>{
-    if(!state.order.length){ pasteFromButton(); return; }
-    if(state.immersive) revealChrome();   // en immersif : révèle la barre
-    else togglePause();                    // sinon : pause / reprise
-  });
+  $('#zoneMid').addEventListener('click', ()=>{ if(!state.order.length){ pasteFromButton(); return; } if(state.immersive) revealChrome(); else togglePause(); });
 
-  // swipe
-  let tx=0, ty=0, tt=0;
-  const zones=$('#zones');
-  zones.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; tx=t.clientX; ty=t.clientY; tt=Date.now(); }, {passive:true});
-  zones.addEventListener('touchend', e=>{
-    const t=e.changedTouches[0]; const dx=t.clientX-tx, dy=t.clientY-ty;
-    if(Date.now()-tt<600 && Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)*1.5){
-      if(dx<0) next(); else prev();
-    }
-  }, {passive:true});
+  let sx=0,sy=0,stt=0; const zones=$('#zones');
+  zones.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY; stt=Date.now(); }, {passive:true});
+  zones.addEventListener('touchend', e=>{ const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy;
+    if(Date.now()-stt<600 && Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)*1.5){ if(dx<0) next(); else prev(); } }, {passive:true});
 
-  // ---------------- Clavier (Mac) ----------------
   document.addEventListener('keydown', e=>{
-    if(nameModal.classList.contains('open')) return; // saisie du nom
-    const k = e.key;
+    if(!lockEl.classList.contains('show') && nameModal.classList.contains('open')) return;
+    if(lockEl.classList.contains('show')){ // saisie du code au clavier (Mac)
+      if(/^[0-9]$/.test(e.key)) pinPush(e.key);
+      else if(e.key==='Backspace') pinBack();
+      return;
+    }
+    if(state.key===null) return;
+    const k=e.key;
     if(k===' '){ e.preventDefault(); if(state.order.length) togglePause(); }
     else if(k==='ArrowRight') next();
     else if(k==='ArrowLeft') prev();
-    else if(k==='ArrowUp'){ state.showRank=!state.showRank; $('#setRank').checked=state.showRank; updateRank(currentItem()?.letter); }
-    else if(k==='Delete'||k==='Backspace'){ deleteCurrent(); }
+    else if(k==='ArrowUp'){ state.showRank=!state.showRank; $('#setRank').checked=state.showRank; updateRank(titleOf(currentItem()||{})); saveState(); }
+    else if(k==='Delete'||k==='Backspace') deleteCurrent();
     else if(k==='0'){ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); }
-    else if(/^[1-9]$/.test(k)){ assignRank(+k); }
-    else if(k==='f'||k==='F'){ setImmersive(!state.immersive); }
-    else if(/^[a-zA-Z]$/.test(k)){
-      const l=k.toLowerCase();
-      if(groups()[l]){ state.activeFilters=new Set([l]); buildPlaylist(); renderFilters(); show(); }
-    }
+    else if(/^[1-9]$/.test(k)) assignRank(+k);
+    else if(k==='f'||k==='F') setImmersive(!state.immersive);
   });
-
-  // empêcher le zoom double-tap iOS sur les boutons
   document.addEventListener('dblclick', e=>e.preventDefault(), {passive:false});
 
-  // ---------------- Init ----------------
-  buildPlaylist();
-  syncSettingUI();
-  show();
+  // ================= Verrouillage écran / PIN =================
+  const lockEl=$('#lock'), coverEl=$('#cover');
+  let lockStage='unlock';  // 'setup1' | 'setup2' | 'unlock' | 'change1' | 'change2'
+  let pinBuf=''; let firstPin='';
+  function renderDots(){ const d=$('#dots'); d.innerHTML=''; for(let i=0;i<PIN_LEN;i++){ const el=document.createElement('div'); el.className='d'+(i<pinBuf.length?' f':''); d.appendChild(el); } }
+  function setLock(title, sub, showWipe){ $('#lockTitle').textContent=title; $('#lockSub').textContent=sub||''; $('#wipeBtn').classList.toggle('hidden', !showWipe); }
+  function showLockScreen(stage){ lockStage=stage; pinBuf=''; firstPin=''; renderDots();
+    if(stage==='setup1') setLock('Créer un code', 'Choisis un code à '+PIN_LEN+' chiffres', false);
+    else if(stage==='unlock') setLock('Code', 'Entre ton code à '+PIN_LEN+' chiffres', true);
+    else if(stage==='change1') setLock('Nouveau code', 'Choisis un nouveau code', false);
+    coverEl.classList.remove('show'); lockEl.classList.add('show');
+  }
+  function hideLockScreen(){ lockEl.classList.remove('show'); coverEl.classList.remove('show'); }
+  function pinPush(d){ if(lockEl.classList.contains('err')) lockEl.classList.remove('err'); if(pinBuf.length>=PIN_LEN) return; pinBuf+=d; renderDots(); if(pinBuf.length===PIN_LEN) setTimeout(submitPin,120); }
+  function pinBack(){ pinBuf=pinBuf.slice(0,-1); renderDots(); }
+  function pinErr(){ lockEl.classList.add('err'); setTimeout(()=>lockEl.classList.remove('err'),450); pinBuf=''; renderDots(); }
+  async function submitPin(){
+    if(lockStage==='setup1'){ firstPin=pinBuf; pinBuf=''; renderDots(); setLock('Confirme le code','Retape le même code',false); lockStage='setup2'; }
+    else if(lockStage==='setup2'){ if(pinBuf!==firstPin){ pinErr(); setLock('Créer un code','Les codes diffèrent, recommence',false); lockStage='setup1'; firstPin=''; return; }
+      const pin=firstPin; firstPin=''; pinBuf=''; setLock('Chiffrement…','Création du coffre',false); await createVault(pin); await afterUnlock(); }
+    else if(lockStage==='unlock'){ setLock('Déchiffrement…','',true); const ok=await tryUnlock(pinBuf); pinBuf='';
+      if(ok){ await afterUnlock(); } else { setLock('Code','Code incorrect', true); pinErr(); } }
+    else if(lockStage==='change1'){ firstPin=pinBuf; pinBuf=''; renderDots(); setLock('Confirme le code','Retape le nouveau code',false); lockStage='change2'; }
+    else if(lockStage==='change2'){ if(pinBuf!==firstPin){ pinErr(); setLock('Nouveau code','Les codes diffèrent, recommence',false); lockStage='change1'; firstPin=''; return; }
+      const pin=firstPin; firstPin=''; pinBuf=''; setLock('Chiffrement…','Mise à jour du code',false); await changePin(pin); hideLockScreen(); showToast('Code changé'); }
+  }
+  function buildKeypad(){
+    const kp=$('#keypad'); kp.innerHTML='';
+    const layout=['1','2','3','4','5','6','7','8','9','wipeblank','0','back'];
+    for(const key of layout){
+      const b=document.createElement('button');
+      if(key==='wipeblank'){ b.className='blank'; }
+      else if(key==='back'){ b.className='act'; b.textContent='⌫'; b.addEventListener('click', pinBack); }
+      else { b.textContent=key; b.addEventListener('click', ()=>pinPush(key)); }
+      kp.appendChild(b);
+    }
+  }
+  $('#wipeBtn').addEventListener('click', ()=>{
+    if(confirm('Effacer DÉFINITIVEMENT toutes les images du coffre ? Cette action est irréversible.')) wipeVault();
+  });
+  function startChangePin(){ closePanel(); showLockScreen('change1'); }
+
+  async function afterUnlock(){
+    await loadAll();
+    hideLockScreen();
+    document.body.classList.remove('immersive'); state.immersive=false;
+    refresh(); syncSettingUI();
+  }
+
+  // Verrouillage sur mise en arrière-plan
+  function doLock(){
+    if(state.key===null) return;
+    clearTimer();
+    for(const it of state.items){ try{URL.revokeObjectURL(it.url);}catch(e){} }
+    state.items=[]; state.order=[]; state.key=null;
+    photo.classList.add('hidden');
+    showLockScreen('unlock');
+  }
+  let bgTimer=null;
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden){
+      if(state.key===null) return;
+      if(state.lockPolicy==='immediate'){ doLock(); }
+      else { coverEl.classList.add('show'); if(state.lockPolicy==='delay'){ clearTimeout(bgTimer); bgTimer=setTimeout(doLock,60000); } }
+    } else {
+      clearTimeout(bgTimer);
+      if(state.key!==null) coverEl.classList.remove('show');
+    }
+  });
+  window.addEventListener('pagehide', ()=>{ if(state.key!==null && state.lockPolicy!=='startup'){ /* la clé disparaît de toute façon à la fermeture */ } });
+
+  // ================= Init =================
+  async function init(){
+    buildKeypad(); renderDots();
+    if(!subtle){ setLock('Indisponible','Le chiffrement nécessite HTTPS (ouvre la version en ligne).', false); lockEl.classList.add('show'); return; }
+    try{
+      if(await hasVault()) showLockScreen('unlock');
+      else showLockScreen('setup1');
+    }catch(e){ showLockScreen('setup1'); }
+  }
+  init();
 })();
 </script>
 </body>

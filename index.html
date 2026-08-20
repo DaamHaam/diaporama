@@ -144,8 +144,8 @@
   #pasteZone{position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; overflow:hidden;}
 
   /* ---- Écran de verrouillage / cover ---- */
-  #cover{position:absolute; inset:0; z-index:90; background:#000; display:none;}
-  #cover.show{display:block;}
+  #cover{position:absolute; inset:0; z-index:95; background:#000; opacity:0; pointer-events:none;}
+  #cover.show{opacity:1; pointer-events:auto;}
   #lock{position:absolute; inset:0; z-index:100; background:#000; display:none; flex-direction:column;
     align-items:center; justify-content:center; padding:26px; text-align:center;}
   #lock.show{display:flex;}
@@ -854,17 +854,20 @@
     showLockScreen('unlock');
   }
   let bgTimer=null;
-  document.addEventListener('visibilitychange', ()=>{
-    if(document.hidden){
-      if(state.key===null) return;
-      if(state.lockPolicy==='immediate'){ doLock(); }
-      else { coverEl.classList.add('show'); if(state.lockPolicy==='delay'){ clearTimeout(bgTimer); bgTimer=setTimeout(doLock,60000); } }
-    } else {
-      clearTimeout(bgTimer);
-      if(state.key!==null) coverEl.classList.remove('show');
-    }
-  });
-  window.addEventListener('pagehide', ()=>{ if(state.key!==null && state.lockPolicy!=='startup'){ /* la clé disparaît de toute façon à la fermeture */ } });
+  function showCover(){ if(state.key!==null) coverEl.classList.add('show'); }
+  function hideCover(){ clearTimeout(bgTimer); if(state.key!==null) coverEl.classList.remove('show'); }
+  // Arrière-plan RÉEL (multitâche/accueil) : applique la politique de verrouillage.
+  function onBackground(){
+    if(state.key===null) return;
+    coverEl.classList.add('show');                 // cache instantané
+    if(state.lockPolicy==='immediate'){ doLock(); }
+    else if(state.lockPolicy==='delay'){ clearTimeout(bgTimer); bgTimer=setTimeout(doLock,60000); }
+  }
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) onBackground(); else hideCover(); });
+  window.addEventListener('pagehide', onBackground);
+  // blur = app qui devient inactive (avant la capture iOS) : on masque tôt, sans verrouiller.
+  window.addEventListener('blur', showCover);
+  window.addEventListener('focus', hideCover);
 
   // ================= Init =================
   async function init(){

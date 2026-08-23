@@ -385,6 +385,7 @@
     wakeLock: null,       // verrou d'écran pendant le diaporama
   };
   const GRACE_MS = 5*60*1000; // 5 min sans code au retour
+  function dg(m){ (window.__diag=window.__diag||[]).push(Date.now()%100000+' '+m); }
 
   const $ = s => document.querySelector(s);
   const enc = new TextEncoder(), dec = new TextDecoder();
@@ -583,6 +584,7 @@
     $('#homePlay').classList.toggle('hidden', n===0);
   }
   function goHome(){
+    dg('goHome');
     state.view='home'; clearTimer(); releaseWake();
     document.body.classList.remove('immersive'); state.immersive=false;
     photo.classList.add('hidden');
@@ -869,7 +871,7 @@
     if(lockStage==='setup1'){ firstPin=pinBuf; pinBuf=''; renderDots(); setLock('Confirme le code','Retape le même code',false); lockStage='setup2'; }
     else if(lockStage==='setup2'){ if(pinBuf!==firstPin){ pinErr(); setLock('Créer un code','Les codes diffèrent, recommence',false); lockStage='setup1'; firstPin=''; return; }
       const pin=firstPin; firstPin=''; pinBuf=''; setLock('Chiffrement…','Création du coffre',false); await createVault(pin); await afterUnlock(); }
-    else if(lockStage==='unlock'){ setLock('Déchiffrement…','',true); const ok=await tryUnlock(pinBuf); pinBuf='';
+    else if(lockStage==='unlock'){ setLock('Déchiffrement…','',true); const ok=await tryUnlock(pinBuf); pinBuf=''; dg('submit unlock ok='+ok);
       if(ok){ await afterUnlock(); } else { setLock('Code','Code incorrect', true); pinErr(); } }
     else if(lockStage==='change1'){ firstPin=pinBuf; pinBuf=''; renderDots(); setLock('Confirme le code','Retape le nouveau code',false); lockStage='change2'; }
     else if(lockStage==='change2'){ if(pinBuf!==firstPin){ pinErr(); setLock('Nouveau code','Les codes diffèrent, recommence',false); lockStage='change1'; firstPin=''; return; }
@@ -892,16 +894,20 @@
   function startChangePin(){ closePanel(); showLockScreen('change1'); }
 
   async function afterUnlock(){
-    await loadAll();
+    dg('AU start');
+    await loadAll(); dg('AU loaded n='+state.items.length);
     hideLockScreen();
     state.immersive=false; document.body.classList.remove('immersive');
-    rebuild(); syncSettingUI();
+    try{ rebuild(); dg('AU rebuilt'); }catch(e){ dg('AU rebuild ERR '+e.message); }
+    try{ syncSettingUI(); dg('AU syncUI'); }catch(e){ dg('AU syncUI ERR '+e.message); }
     goHome();                        // toujours l'écran Coller, jamais une image
+    dg('AU end view='+state.view+' homeClass='+homeEl.className);
   }
 
   // Verrouillage sur mise en arrière-plan
   function doLock(){
     if(state.key===null) return;
+    dg('doLock');
     clearTimer(); releaseWake();
     for(const it of state.items){ try{URL.revokeObjectURL(it.url);}catch(e){} }
     state.items=[]; state.order=[]; state.key=null; state.view='home';
@@ -925,10 +931,13 @@
   function onVisibleReal(){
     if(state.key===null) return;               // déjà verrouillé (ou démarrage à froid)
     coverEl.classList.remove('show');
-    if(Date.now()-state.lastActive >= GRACE_MS) doLock();
+    if(!state.lastActive) return;              // pas de vraie mise en arrière-plan → ne rien faire
+    const elapsed=Date.now()-state.lastActive;
+    state.lastActive=0;                         // consommé
+    if(elapsed>=GRACE_MS) doLock();
     else goHome();                             // toujours l'écran Coller, jamais une image
   }
-  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) onHiddenReal(); else onVisibleReal(); });
+  document.addEventListener('visibilitychange', ()=>{ dg('vis hidden='+document.hidden); if(document.hidden) onHiddenReal(); else onVisibleReal(); });
   window.addEventListener('pagehide', onHiddenReal);
   // blur/focus = perte de focus brève (Centre de contrôle…) : on masque tôt, sans verrouiller ni changer de vue.
   window.addEventListener('blur', ()=>{ if(state.key!==null) coverEl.classList.add('show'); });

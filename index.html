@@ -60,7 +60,7 @@
   #rankBtn .cnt{position:absolute; top:2px; right:2px; font-size:11px; color:var(--gold); font-weight:700;}
 
   /* ---- Panneau ---- */
-  #panel{position:absolute; inset:0; z-index:40; background:rgba(0,0,0,.55); display:flex; align-items:flex-end;
+  #panel{position:absolute; inset:0; z-index:75; background:rgba(0,0,0,.55); display:flex; align-items:flex-end;
     opacity:0; pointer-events:none; transition:opacity .25s;}
   #panel.open{opacity:1; pointer-events:auto;}
   #sheet{background:var(--panel); width:100%; max-height:88%; border-radius:18px 18px 0 0;
@@ -111,7 +111,7 @@
   .help-line{padding:7px 0; font-size:14px; display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line);}
 
   /* ---- Modale titre ---- */
-  #nameModal{position:absolute; inset:0; z-index:45; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:22px;
+  #nameModal{position:absolute; inset:0; z-index:80; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:22px;
     opacity:0; pointer-events:none; transition:opacity .2s;}
   #nameModal.open{opacity:1; pointer-events:auto;}
   .card{background:var(--panel); border-radius:18px; padding:18px; width:100%; max-width:380px; max-height:90%; overflow-y:auto;}
@@ -130,7 +130,7 @@
   #queueInfo{font-size:12px; color:var(--muted); text-align:center; margin-top:10px; min-height:16px;}
 
   /* ---- Rang picker ---- */
-  #rankModal{position:absolute; inset:0; z-index:45; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:22px;
+  #rankModal{position:absolute; inset:0; z-index:80; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:22px;
     opacity:0; pointer-events:none; transition:opacity .2s;}
   #rankModal.open{opacity:1; pointer-events:auto;}
   #rankGrid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin:14px 0;}
@@ -138,10 +138,25 @@
   #rankGrid button.cur{background:var(--gold); color:#000; border-color:var(--gold);}
 
   #toast{position:absolute; left:50%; bottom:calc(var(--bar-h) + env(safe-area-inset-bottom) + 20px); transform:translateX(-50%) translateY(20px);
-    z-index:50; background:rgba(50,50,52,.95); padding:10px 18px; border-radius:24px; font-size:14px; opacity:0; transition:.25s; pointer-events:none;}
+    z-index:90; background:rgba(50,50,52,.95); padding:10px 18px; border-radius:24px; font-size:14px; opacity:0; transition:.25s; pointer-events:none;}
   #toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
   #pasteZone{position:absolute; opacity:0; pointer-events:none; width:1px; height:1px; overflow:hidden;}
+
+  /* ---- Écran d'accueil (bouton Coller) ---- */
+  #home{position:absolute; inset:0; z-index:60; background:#000; display:none; flex-direction:column;}
+  #home.show{display:flex;}
+  #home .home-top{display:flex; justify-content:flex-end; gap:10px; padding:calc(env(safe-area-inset-top) + 12px) 16px 0;}
+  #home .home-top button{width:44px; height:44px; border-radius:22px; background:var(--panel2); border:1px solid var(--line); font-size:20px;}
+  #home .home-center{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; padding:24px;}
+  .home-paste{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    width:210px; height:210px; border-radius:40px; background:var(--accent); border:0; color:#fff; font-weight:600;}
+  .home-paste .ic{font-size:70px; line-height:1;}
+  .home-paste .tx{font-size:24px;}
+  .home-paste:active{filter:brightness(.9);}
+  .home-play{padding:15px 28px; border-radius:16px; background:var(--panel2); border:1px solid var(--line); color:#fff; font-size:18px; font-weight:600;}
+  .home-play:active{background:#3a3a3c;}
+  .home-info{color:var(--muted); font-size:14px; text-align:center; min-height:18px;}
 
   /* ---- Écran de verrouillage / cover ---- */
   #cover{position:absolute; inset:0; z-index:95; background:#000; opacity:0; pointer-events:none;}
@@ -189,7 +204,7 @@
 </div>
 
 <div id="bar">
-  <button class="bbtn" id="btnPaste" title="Coller">📋</button>
+  <button class="bbtn" id="btnHome" title="Accueil">🏠</button>
   <button class="bbtn" id="btnPrev" title="Précédent">⏮</button>
   <button class="bbtn play" id="btnPlay" title="Lecture/Pause">⏸</button>
   <button class="bbtn" id="btnNext" title="Suivant">⏭</button>
@@ -251,12 +266,7 @@
           <label class="sw"><input type="checkbox" id="setFull"><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
-          <div><div class="lbl">Verrouillage</div><div class="sub">Redemander le code…</div></div>
-          <select id="setLock">
-            <option value="immediate">En quittant l'app</option>
-            <option value="delay">Après 1 min</option>
-            <option value="startup">Au démarrage seulement</option>
-          </select>
+          <div><div class="lbl">Verrouillage auto</div><div class="sub">Code redemandé après 5 min en arrière-plan · aperçu masqué à chaque sortie</div></div>
         </div>
         <div style="padding-top:14px">
           <div class="lbl">Groupes à afficher</div>
@@ -320,6 +330,19 @@
 <div id="toast"></div>
 <div id="pasteZone" contenteditable="true"></div>
 
+<!-- Écran d'accueil : bouton Coller central -->
+<div id="home">
+  <div class="home-top">
+    <button id="homeLock" title="Verrouiller">🔒</button>
+    <button id="homeMenu" title="Réglages">⚙️</button>
+  </div>
+  <div class="home-center">
+    <button id="homePaste" class="home-paste"><span class="ic">📋</span><span class="tx">Coller</span></button>
+    <button id="homePlay" class="home-play">▶️ Lancer le diaporama</button>
+    <div id="homeInfo" class="home-info"></div>
+  </div>
+</div>
+
 <!-- Cover (anti fuite dans l'aperçu multitâche) -->
 <div id="cover"></div>
 
@@ -355,10 +378,13 @@
     groupOrder: [],       // ordre de classement des titres
     timer: null,
     immersive: false,
-    lockPolicy: 'immediate',
     lastTitle: '',
     key: null,            // CryptoKey (présent seulement quand déverrouillé)
+    view: 'home',         // 'home' (écran Coller) | 'slideshow'
+    lastActive: 0,        // horodatage de la dernière mise en arrière-plan
+    wakeLock: null,       // verrou d'écran pendant le diaporama
   };
+  const GRACE_MS = 5*60*1000; // 5 min sans code au retour
 
   const $ = s => document.querySelector(s);
   const enc = new TextEncoder(), dec = new TextDecoder();
@@ -449,7 +475,7 @@
     if(!state.key) return;
     const o={groupOrder:state.groupOrder, delay:state.delay, random:state.random, seriesMode:state.seriesMode,
              seriesSize:state.seriesSize, fairMode:state.fairMode, showRank:state.showRank,
-             immersive:false, lockPolicy:state.lockPolicy, lastTitle:state.lastTitle};
+             lastTitle:state.lastTitle};
     const e=await encJSON(state.key, o);
     await idbPut('meta',{k:'state', iv:e.iv, ct:e.ct});
   }
@@ -459,7 +485,7 @@
     if(st){ try{ const o=await decJSON(state.key, st.iv, st.ct);
       state.groupOrder=o.groupOrder||[]; state.delay=o.delay??5000; state.random=o.random??true;
       state.seriesMode=!!o.seriesMode; state.seriesSize=o.seriesSize||3; state.fairMode=!!o.fairMode;
-      state.showRank=o.showRank??true; state.lockPolicy=o.lockPolicy||'immediate'; state.lastTitle=o.lastTitle||'';
+      state.showRank=o.showRank??true; state.lastTitle=o.lastTitle||'';
     }catch(e){} }
     // Photos
     state.items=[];
@@ -528,6 +554,7 @@
   function clearTimer(){ if(state.timer){ clearTimeout(state.timer); state.timer=null; } }
   function currentItem(){ return state.order[state.index]||null; }
   function show(){
+    if(state.view!=='slideshow') return;   // l'accueil (écran Coller) n'affiche jamais d'image
     clearTimer();
     if(!state.order.length){ photo.classList.add('hidden'); empty.classList.remove('hidden'); hud.classList.add('hidden'); updateRank(null); updateRankCount(); return; }
     empty.classList.add('hidden'); photo.classList.remove('hidden');
@@ -545,7 +572,31 @@
   function togglePause(){ state.paused=!state.paused; $('#btnPlay').textContent=state.paused?'▶️':'⏸';
     pausePill.textContent=state.paused?'⏸':'▶️'; pausePill.classList.add('show'); setTimeout(()=>pausePill.classList.remove('show'),500);
     if(state.paused) clearTimer(); else show(); }
-  function refresh(){ syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount(); show(); }
+  function rebuild(){ syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount(); }
+  function afterDataChange(){ rebuild(); if(state.view==='slideshow') show(); else showHome(); }
+
+  // ---- Écran d'accueil / diaporama ----
+  const homeEl=$('#home'), homeInfo=$('#homeInfo');
+  function showHome(){
+    const n=state.items.length, m=allTitles().length;
+    homeInfo.textContent = n ? (n+' image'+(n>1?'s':'')+' · '+m+' groupe'+(m>1?'s':'')+' — appuie sur Lancer') : 'Aucune image — colle une capture';
+    $('#homePlay').classList.toggle('hidden', n===0);
+  }
+  function goHome(){
+    state.view='home'; clearTimer(); releaseWake();
+    document.body.classList.remove('immersive'); state.immersive=false;
+    photo.classList.add('hidden');
+    homeEl.classList.add('show');
+    showHome();
+  }
+  function startSlideshow(){
+    if(!state.items.length){ showToast('Aucune image à afficher'); return; }
+    state.view='slideshow';
+    homeEl.classList.remove('show');
+    state.paused=false; $('#btnPlay').textContent='⏸';
+    buildPlaylist(); show();
+    acquireWake();
+  }
 
   // ================= Ajout / suppression =================
   async function addItem(title, blob, url){
@@ -553,7 +604,7 @@
     state.items.push(it);
     state.lastTitle=it.title || state.lastTitle;
     try{ await savePhoto(it, blob); await saveState(); }catch(e){ showToast('Erreur de chiffrement'); }
-    refresh();
+    afterDataChange();
     showToast(it.title ? ('Ajouté · '+it.title) : 'Ajouté (sans titre)');
   }
   async function removeItem(id){
@@ -561,7 +612,7 @@
     try{ URL.revokeObjectURL(state.items[i].url); }catch(e){}
     state.items.splice(i,1);
     try{ await idbDel('photos', id); await saveState(); }catch(e){}
-    refresh();
+    afterDataChange();
   }
   async function deleteCurrent(){
     const it=currentItem(); if(!it) return;
@@ -580,7 +631,7 @@
       try{ const b=await (await fetch(it.url)).blob(); await savePhoto(it, b); }catch(e){} } }
     if(gi>=0){ if(!state.groupOrder.includes(nt)) state.groupOrder[gi]=nt; else state.groupOrder.splice(gi,1); }
     if(state.lastTitle===oldTitle) state.lastTitle=nt;
-    await saveState(); refresh(); showToast('Groupe renommé');
+    await saveState(); afterDataChange(); showToast('Groupe renommé');
   }
 
   // ================= Classement =================
@@ -675,7 +726,7 @@
     $('#setRandom').checked=state.random; $('#setSeries').checked=state.seriesMode;
     $('#setSeriesSize').value=state.seriesSize; $('#seriesVal').textContent=state.seriesSize;
     $('#setFair').checked=state.fairMode; $('#setRank').checked=state.showRank;
-    $('#setFull').checked=state.immersive; $('#setLock').value=state.lockPolicy;
+    $('#setFull').checked=state.immersive;
   }
   $('#setDelay').addEventListener('input', e=>{ state.delay=+e.target.value*1000; $('#delayVal').textContent=(+e.target.value)+' s'; saveState(); });
   $('#setRandom').addEventListener('change', e=>{ state.random=e.target.checked; buildPlaylist(); show(); saveState(); });
@@ -684,7 +735,6 @@
   $('#setFair').addEventListener('change', e=>{ state.fairMode=e.target.checked; if(state.fairMode&&state.seriesMode){state.seriesMode=false;$('#setSeries').checked=false;} buildPlaylist(); show(); saveState(); });
   $('#setRank').addEventListener('change', e=>{ state.showRank=e.target.checked; updateRank(titleOf(currentItem()||{})); saveState(); });
   $('#setFull').addEventListener('change', e=>{ setImmersive(e.target.checked); });
-  $('#setLock').addEventListener('change', e=>{ state.lockPolicy=e.target.value; saveState(); });
   $('#lockNow').addEventListener('click', ()=>{ closePanel(); doLock(); });
   $('#changePin').addEventListener('click', startChangePin);
 
@@ -755,7 +805,11 @@
   function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>toast.classList.remove('show'),1800); }
 
   // ================= Contrôles =================
-  $('#btnPaste').addEventListener('click', pasteFromButton);
+  $('#homePaste').addEventListener('click', pasteFromButton);
+  $('#homePlay').addEventListener('click', startSlideshow);
+  $('#homeLock').addEventListener('click', doLock);
+  $('#homeMenu').addEventListener('click', ()=>openPanel('set'));
+  $('#btnHome').addEventListener('click', goHome);
   $('#emptyPaste').addEventListener('click', pasteFromButton);
   $('#libPaste').addEventListener('click', pasteFromButton);
   $('#btnPrev').addEventListener('click', prev);
@@ -840,34 +894,45 @@
   async function afterUnlock(){
     await loadAll();
     hideLockScreen();
-    document.body.classList.remove('immersive'); state.immersive=false;
-    refresh(); syncSettingUI();
+    state.immersive=false; document.body.classList.remove('immersive');
+    rebuild(); syncSettingUI();
+    goHome();                        // toujours l'écran Coller, jamais une image
   }
 
   // Verrouillage sur mise en arrière-plan
   function doLock(){
     if(state.key===null) return;
-    clearTimer();
+    clearTimer(); releaseWake();
     for(const it of state.items){ try{URL.revokeObjectURL(it.url);}catch(e){} }
-    state.items=[]; state.order=[]; state.key=null;
-    photo.classList.add('hidden');
+    state.items=[]; state.order=[]; state.key=null; state.view='home';
+    photo.classList.add('hidden'); homeEl.classList.remove('show');
     showLockScreen('unlock');
   }
-  let bgTimer=null;
-  function showCover(){ if(state.key!==null) coverEl.classList.add('show'); }
-  function hideCover(){ clearTimeout(bgTimer); if(state.key!==null) coverEl.classList.remove('show'); }
-  // Arrière-plan RÉEL (multitâche/accueil) : applique la politique de verrouillage.
-  function onBackground(){
-    if(state.key===null) return;
-    coverEl.classList.add('show');                 // cache instantané
-    if(state.lockPolicy==='immediate'){ doLock(); }
-    else if(state.lockPolicy==='delay'){ clearTimeout(bgTimer); bgTimer=setTimeout(doLock,60000); }
+  // Wake Lock : empêche l'écran de l'iPhone de se verrouiller pendant le diaporama (iOS 16.4+)
+  async function acquireWake(){
+    try{ if('wakeLock' in navigator){ state.wakeLock=await navigator.wakeLock.request('screen'); } }catch(e){}
   }
-  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) onBackground(); else hideCover(); });
-  window.addEventListener('pagehide', onBackground);
-  // blur = app qui devient inactive (avant la capture iOS) : on masque tôt, sans verrouiller.
-  window.addEventListener('blur', showCover);
-  window.addEventListener('focus', hideCover);
+  function releaseWake(){ try{ if(state.wakeLock) state.wakeLock.release(); }catch(e){} state.wakeLock=null; }
+
+  // Mise en arrière-plan réelle : mémorise l'heure, masque l'aperçu, relâche le wake lock.
+  function onHiddenReal(){
+    if(state.key===null) return;
+    state.lastActive=Date.now();
+    coverEl.classList.add('show');
+    releaseWake();
+  }
+  // Retour au premier plan : < 5 min → pas de code, écran Coller ; ≥ 5 min → code.
+  function onVisibleReal(){
+    if(state.key===null) return;               // déjà verrouillé (ou démarrage à froid)
+    coverEl.classList.remove('show');
+    if(Date.now()-state.lastActive >= GRACE_MS) doLock();
+    else goHome();                             // toujours l'écran Coller, jamais une image
+  }
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden) onHiddenReal(); else onVisibleReal(); });
+  window.addEventListener('pagehide', onHiddenReal);
+  // blur/focus = perte de focus brève (Centre de contrôle…) : on masque tôt, sans verrouiller ni changer de vue.
+  window.addEventListener('blur', ()=>{ if(state.key!==null) coverEl.classList.add('show'); });
+  window.addEventListener('focus', ()=>{ if(state.key!==null) coverEl.classList.remove('show'); });
 
   // ================= Init =================
   async function init(){

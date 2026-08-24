@@ -46,6 +46,38 @@
     font-size:60px; opacity:0; transition:opacity .25s; pointer-events:none; text-shadow:0 3px 10px rgba(0,0,0,.7);}
   #pausePill.show{opacity:.9;}
 
+  /* ---- Cœur « J'aime » ---- */
+  #likeHeart{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(.3); z-index:25;
+    font-size:130px; opacity:0; pointer-events:none; filter:drop-shadow(0 4px 14px rgba(0,0,0,.55));}
+  #likeHeart.pop{animation:heartPop .85s ease-out;}
+  @keyframes heartPop{
+    0%{opacity:0; transform:translate(-50%,-50%) scale(.3);}
+    25%{opacity:.98; transform:translate(-50%,-50%) scale(1.15);}
+    55%{opacity:.95; transform:translate(-50%,-50%) scale(1);}
+    100%{opacity:0; transform:translate(-50%,-50%) scale(1.35);}
+  }
+  .liked-badge{position:absolute; top:3px; left:3px; font-size:15px; z-index:2; text-shadow:0 1px 3px rgba(0,0,0,.7);}
+
+  /* ---- Popover points ---- */
+  #scorePop{position:absolute; left:50%; transform:translateX(-50%);
+    bottom:calc(var(--bar-h) + env(safe-area-inset-bottom) + 10px); z-index:40;
+    display:flex; gap:10px; background:rgba(28,28,30,.96); padding:10px; border-radius:16px;
+    border:1px solid var(--line); box-shadow:0 8px 24px rgba(0,0,0,.5);}
+  #scorePop button{width:56px; height:52px; border-radius:12px; background:var(--panel2); border:1px solid var(--line);
+    color:var(--gold); font-size:19px; font-weight:800;}
+  #scorePop button:active{background:#3a3a3c;}
+
+  /* ---- Palmarès ---- */
+  #scoreList{margin-top:4px;}
+  .score-row{display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--line);}
+  .score-row:last-child{border-bottom:0;}
+  .score-row .pos{width:24px; text-align:center; font-size:15px; font-weight:700; color:var(--muted);}
+  .score-row .pos.top{color:var(--gold);}
+  .score-row img{width:46px; height:46px; border-radius:10px; object-fit:cover; background:#000; border:1px solid var(--line); flex:none;}
+  .score-row .nm{flex:1; font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .score-row .pts{font-size:16px; font-weight:800; color:var(--gold); min-width:34px; text-align:right;}
+  .score-empty{color:var(--muted); font-size:14px; padding:14px 2px;}
+
   /* ---- Barre ---- */
   #bar{position:absolute; left:0; right:0; bottom:0; z-index:30; height:calc(var(--bar-h) + env(safe-area-inset-bottom));
     padding-bottom:env(safe-area-inset-bottom); background:rgba(20,20,22,.82);
@@ -196,6 +228,7 @@
 <div id="hud" class="hidden"></div>
 <div id="rank"></div>
 <div id="pausePill">⏸</div>
+<div id="likeHeart">❤️</div>
 
 <div id="zones">
   <div class="z" id="zonePrev"></div>
@@ -209,9 +242,16 @@
   <button class="bbtn play" id="btnPlay" title="Lecture/Pause">⏸</button>
   <button class="bbtn" id="btnNext" title="Suivant">⏭</button>
   <button class="bbtn" id="rankBtn" title="Classer le groupe">#<span class="cnt"></span></button>
+  <button class="bbtn" id="scoreBtn" title="Ajouter des points à la catégorie">➕</button>
   <button class="bbtn" id="btnDel" title="Supprimer l'image">🗑</button>
   <button class="bbtn" id="btnFs" title="Masquer la barre / plein écran">⛶</button>
   <button class="bbtn" id="btnMenu" title="Réglages">⚙️</button>
+</div>
+
+<div id="scorePop" class="hidden">
+  <button data-pts="1">+1</button>
+  <button data-pts="2">+2</button>
+  <button data-pts="3">+3</button>
 </div>
 
 <!-- Panneau -->
@@ -221,6 +261,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="lib">Bibliothèque</button>
         <button class="tab" data-tab="set">Réglages</button>
+        <button class="tab" data-tab="score">Palmarès</button>
         <button class="tab" data-tab="help">Aide</button>
       </div>
       <button class="close-x" id="panelClose">✕</button>
@@ -262,7 +303,7 @@
           <label class="sw"><input type="checkbox" id="setRank" checked><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
-          <div><div class="lbl">Mode immersif</div><div class="sub">Masque la barre · tape au centre pour la revoir</div></div>
+          <div><div class="lbl">Mode immersif</div><div class="sub">Masque la barre · balaie vers le haut pour la revoir</div></div>
           <label class="sw"><input type="checkbox" id="setFull"><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
@@ -278,12 +319,19 @@
           <button class="big danger" id="lockNow">🔒 Verrouiller maintenant</button>
         </div>
       </div>
+      <div class="tabpage" id="page-score">
+        <div class="hint">Points attribués à chaque catégorie. Indépendant du classement (#).</div>
+        <div id="scoreList"></div>
+        <button class="big danger" id="scoreReset" style="margin-top:16px">Remettre tous les scores à zéro</button>
+      </div>
       <div class="tabpage" id="page-help">
         <div class="hint">Gestes pendant le diaporama :</div>
-        <div class="help-line"><span>Zone gauche / droite</span><span>Précédent / Suivant</span></div>
-        <div class="help-line"><span>Zone centrale (tap)</span><span>Pause / Reprise</span></div>
         <div class="help-line"><span>Balayer ← →</span><span>Précédent / Suivant</span></div>
+        <div class="help-line"><span>Balayer ↑ (bas vers haut)</span><span>Afficher les menus + Pause</span></div>
+        <div class="help-line"><span>Balayer ↓ (haut vers bas)</span><span>Masquer les menus + Reprise</span></div>
+        <div class="help-line"><span>Double-tap sur l'image</span><span>❤️ J'aime (favori)</span></div>
         <div class="help-line"><span>Bouton #</span><span>Classer le groupe (1–9)</span></div>
+        <div class="help-line"><span>Bouton ➕</span><span>Ajouter 1–3 points à la catégorie</span></div>
         <div class="hint" style="margin-top:16px">Raccourcis clavier (Mac) :</div>
         <div class="help-line"><span><kbd>Espace</kbd></span><span>Pause / Reprise</span></div>
         <div class="help-line"><span><kbd>←</kbd> <kbd>→</kbd></span><span>Précédent / Suivant</span></div>
@@ -375,7 +423,11 @@
     activeFilters: null,  // null = tous ; Set de titres
     paused: false,
     showRank: true,
-    groupOrder: [],       // ordre de classement des titres
+    groupOrder: [],       // ordre de classement des titres (indépendant des scores)
+    scores: {},           // {titre: points} — persistant dans le coffre
+    likes: new Set(),     // ids des photos likées — session uniquement (effacé au rechargement)
+    boostPhase: 0,        // 0=aucun like, 1=cycle neutre en cours avant boost, 2=boost actif
+    fairCycle: false,     // la playlist courante a-t-elle été construite en mode équitable ?
     timer: null,
     immersive: false,
     lastTitle: '',
@@ -475,7 +527,7 @@
     if(!state.key) return;
     const o={groupOrder:state.groupOrder, delay:state.delay, random:state.random, seriesMode:state.seriesMode,
              seriesSize:state.seriesSize, fairMode:state.fairMode, showRank:state.showRank,
-             lastTitle:state.lastTitle};
+             lastTitle:state.lastTitle, scores:state.scores};
     const e=await encJSON(state.key, o);
     await idbPut('meta',{k:'state', iv:e.iv, ct:e.ct});
   }
@@ -486,6 +538,7 @@
       state.groupOrder=o.groupOrder||[]; state.delay=o.delay??5000; state.random=o.random??true;
       state.seriesMode=!!o.seriesMode; state.seriesSize=o.seriesSize||3; state.fairMode=!!o.fairMode;
       state.showRank=o.showRank??true; state.lastTitle=o.lastTitle||'';
+      state.scores=(o.scores && typeof o.scores==='object')?o.scores:{};
     }catch(e){} }
     // Photos
     state.items=[];
@@ -530,13 +583,27 @@
   function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
   // ================= Playlist =================
+  // Clés (catégories) réellement diffusées, en tenant compte des filtres.
+  function fairKeys(g){
+    const keys=Object.keys(g);
+    if(state.activeFilters===null) return keys;
+    return keys.filter(k=>state.activeFilters.has(k));
+  }
   function buildPlaylist(){
-    const g=groups(); const keys=Object.keys(g); let list;
-    if(state.fairMode && state.activeFilters===null && keys.length){
-      const minCount=Math.min(...keys.map(k=>g[k].length));
+    const g=groups(); const keys=Object.keys(g); let list; state.fairCycle=false;
+    const fk = state.fairMode ? fairKeys(g) : [];
+    if(state.fairMode && fk.length){
+      // Mode équitable : on s'aligne sur la plus petite catégorie SÉLECTIONNÉE.
+      // Les catégories désélectionnées sortent du calcul du minimum.
+      const minCount=Math.min(...fk.map(k=>g[k].length));
       const cycle=[];
-      for(const k of keys){ cycle.push(...shuffle(g[k].slice()).slice(0,minCount)); }
-      list=shuffle(cycle);
+      for(const k of fk){ cycle.push(...shuffle(g[k].slice()).slice(0,minCount)); }
+      // Boost des favoris : une fois le cycle neutre passé, chaque photo likée
+      // (dans une catégorie affichée) est ajoutée une fois de plus. Petit déséquilibre voulu.
+      if(state.boostPhase===2 && state.likes.size){
+        for(const k of fk){ for(const it of g[k]){ if(state.likes.has(it.id)) cycle.push(it); } }
+      }
+      list=shuffle(cycle); state.fairCycle=true;
     } else if(state.seriesMode && state.activeFilters===null && keys.length){
       list=[];
       for(const k of keys){ let grp=g[k].slice(); if(state.random) shuffle(grp); list.push(...grp.slice(0,state.seriesSize)); }
@@ -555,7 +622,7 @@
   function currentItem(){ return state.order[state.index]||null; }
   function show(){
     if(state.view!=='slideshow') return;   // l'accueil (écran Coller) n'affiche jamais d'image
-    clearTimer();
+    clearTimer(); hideScorePop();
     if(!state.order.length){ photo.classList.add('hidden'); empty.classList.remove('hidden'); hud.classList.add('hidden'); updateRank(null); updateRankCount(); return; }
     empty.classList.add('hidden'); photo.classList.remove('hidden');
     const it=currentItem(); photo.src=it.url;
@@ -565,7 +632,13 @@
   }
   function next(){ if(!state.order.length) return; clearTimer();
     const ni=(state.index+1)%state.order.length;
-    if(state.fairMode && state.activeFilters===null && ni===0) buildPlaylist(); else state.index=ni; show(); }
+    if(state.fairCycle && ni===0){
+      // Fin d'un cycle équitable : on reconstruit (nouveau tirage aléatoire).
+      const wasPhase=state.boostPhase;
+      buildPlaylist();                       // construit le cycle suivant avec la phase courante
+      if(wasPhase===1) state.boostPhase=2;   // le cycle neutre obligatoire vient de s'écouler → boost ensuite
+    } else state.index=ni;
+    show(); }
   function prev(){ if(!state.order.length) return; clearTimer();
     state.index=(state.index-1+state.order.length)%state.order.length; show(); }
   function updateRank(title){ if(!state.showRank){ rankEl.textContent=''; return; } const r=rankMap()[title]; rankEl.textContent=r?String(r):''; }
@@ -631,6 +704,7 @@
       try{ const b=await (await fetch(it.url)).blob(); await savePhoto(it, b); }catch(e){} } }
     if(gi>=0){ if(!state.groupOrder.includes(nt)) state.groupOrder[gi]=nt; else state.groupOrder.splice(gi,1); }
     if(state.lastTitle===oldTitle) state.lastTitle=nt;
+    if(state.scores[oldTitle]!=null){ state.scores[nt]=(state.scores[nt]||0)+state.scores[oldTitle]; delete state.scores[oldTitle]; }
     await saveState(); afterDataChange(); showToast('Groupe renommé');
   }
 
@@ -647,6 +721,57 @@
   function clearRank(){ const it=currentItem(); const t=it&&titleOf(it); if(!t) return;
     state.groupOrder=state.groupOrder.filter(x=>x!==t); state.groupOrder.push(t); updateRank(t); updateRankCount(); saveState(); }
   function updateRankCount(){ const it=currentItem(); const r=it?rankMap()[titleOf(it)]:null; $('#rankBtn .cnt').textContent=r?r:''; }
+
+  // ================= Favoris (likes) =================
+  // Les likes vivent en mémoire uniquement : ils sont effacés au rechargement de l'app.
+  const likeHeart=$('#likeHeart');
+  function showHeart(){ likeHeart.classList.remove('pop'); void likeHeart.offsetWidth; likeHeart.classList.add('pop'); }
+  let lastLikeTs=0;
+  function likeCurrent(){
+    if(state.view!=='slideshow') return;
+    const it=currentItem(); if(!it) return;
+    const now=Date.now(); if(now-lastLikeTs<400) return; lastLikeTs=now; // anti double-déclenchement tactile/souris
+    state.likes.add(it.id);
+    if(state.boostPhase===0) state.boostPhase=1; // 1er like → un cycle neutre complet, puis boost
+    showHeart();
+  }
+
+  // ================= Scores de catégories =================
+  // Totalement distinct du classement (#) : ce sont des points cumulés par catégorie.
+  function addScore(pts){
+    const it=currentItem(); const t=it&&titleOf(it);
+    if(!t){ showToast('Cette image n\'a pas de titre'); return; }
+    state.scores[t]=(state.scores[t]||0)+pts; saveState();
+    showToast('+'+pts+' · '+t+' ('+state.scores[t]+' pts)');
+    if(panel.classList.contains('open')) renderScores();
+  }
+  function scoreThumb(title){
+    const list=groups()[title]||[];
+    const liked=list.find(x=>state.likes.has(x.id));
+    return (liked||list[0]||null);
+  }
+  function renderScores(){
+    const box=$('#scoreList'); if(!box) return; box.innerHTML='';
+    const titles=allTitles();
+    if(!titles.length){ box.innerHTML='<div class="score-empty">Aucune catégorie pour l\'instant.</div>'; return; }
+    const ranked=titles.slice().sort((a,b)=>{
+      const d=(state.scores[b]||0)-(state.scores[a]||0);
+      return d!==0?d:a.localeCompare(b);
+    });
+    ranked.forEach((t,i)=>{
+      const pts=state.scores[t]||0; const th=scoreThumb(t);
+      const row=document.createElement('div'); row.className='score-row';
+      const pos=document.createElement('div'); pos.className='pos'+(pts>0&&i<3?' top':''); pos.textContent=(i+1);
+      const img=document.createElement('img'); if(th) img.src=th.url;
+      const nm=document.createElement('div'); nm.className='nm'; nm.textContent=t;
+      const p=document.createElement('div'); p.className='pts'; p.textContent=pts;
+      row.append(pos,img,nm,p); box.appendChild(row);
+    });
+  }
+  function resetScores(){
+    if(!confirm('Remettre tous les scores à zéro ?')) return;
+    state.scores={}; saveState(); renderScores(); showToast('Scores remis à zéro');
+  }
 
   // ================= File de nommage =================
   let nameQueue=[]; let nameCur=null; // {blob,url}
@@ -713,10 +838,11 @@
 
   // ================= Panneau =================
   const panel=$('#panel');
-  function openPanel(tab){ panel.classList.add('open'); if(tab) selectTab(tab); renderLib(); renderFilters(); syncSettingUI(); }
+  function openPanel(tab){ panel.classList.add('open'); if(tab) selectTab(tab); renderLib(); renderFilters(); renderScores(); syncSettingUI(); }
   function closePanel(){ panel.classList.remove('open'); }
   function selectTab(name){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
-    document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active',p.id==='page-'+name)); }
+    document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
+    if(name==='score') renderScores(); }
   document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>selectTab(t.dataset.tab)));
   $('#panelClose').addEventListener('click', closePanel);
   panel.addEventListener('click', e=>{ if(e.target===panel) closePanel(); });
@@ -820,14 +946,39 @@
   $('#btnMenu').addEventListener('click', ()=>openPanel('set'));
   $('#rankBtn').addEventListener('click', openRankPicker);
   rankEl.addEventListener('click', openRankPicker);
-  $('#zonePrev').addEventListener('click', prev);
-  $('#zoneNext').addEventListener('click', next);
-  $('#zoneMid').addEventListener('click', ()=>{ if(!state.order.length){ pasteFromButton(); return; } if(state.immersive) revealChrome(); else togglePause(); });
 
-  let sx=0,sy=0,stt=0; const zones=$('#zones');
+  // ---- Bouton points (+) et popover ----
+  const scorePop=$('#scorePop');
+  function hideScorePop(){ scorePop.classList.add('hidden'); }
+  $('#scoreBtn').addEventListener('click', e=>{ e.stopPropagation();
+    const it=currentItem(); if(!it||!titleOf(it)){ showToast('Cette image n\'a pas de titre'); return; }
+    scorePop.classList.toggle('hidden'); });
+  scorePop.querySelectorAll('button').forEach(b=>b.addEventListener('click', ()=>{ addScore(+b.dataset.pts); hideScorePop(); }));
+  document.addEventListener('click', e=>{ if(!scorePop.classList.contains('hidden') && !scorePop.contains(e.target) && e.target.id!=='scoreBtn') hideScorePop(); });
+  $('#scoreReset').addEventListener('click', resetScores);
+
+  // ---- Gestes tactiles : balayages + double-tap ----
+  // Plus aucune action au simple tap sur l'image ; navigation par balayages, like au double-tap.
+  function pauseIfPlaying(){ if(!state.paused && state.order.length) togglePause(); }
+  function resumeIfPaused(){ if(state.paused && state.order.length) togglePause(); }
+  let sx=0,sy=0,stt=0,lastTap=0; const zones=$('#zones');
   zones.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY; stt=Date.now(); }, {passive:true});
-  zones.addEventListener('touchend', e=>{ const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy;
-    if(Date.now()-stt<600 && Math.abs(dx)>50 && Math.abs(dx)>Math.abs(dy)*1.5){ if(dx<0) next(); else prev(); } }, {passive:true});
+  zones.addEventListener('touchend', e=>{
+    const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy;
+    const adx=Math.abs(dx), ady=Math.abs(dy); const dt=Date.now()-stt;
+    if(dt<600 && adx>50 && adx>ady*1.5){ if(dx<0) next(); else prev(); return; }        // balayage horizontal
+    if(dt<600 && ady>50 && ady>adx*1.5){                                                  // balayage vertical
+      if(dy<0){ setImmersive(false); pauseIfPlaying(); }   // vers le haut : menus + pause
+      else { setImmersive(true); resumeIfPaused(); }       // vers le bas : masquer + reprise
+      return;
+    }
+    if(dt<300 && adx<20 && ady<20){                                                       // tap simple
+      const now=Date.now();
+      if(now-lastTap<300){ likeCurrent(); lastTap=0; } else { lastTap=now; }              // double-tap → like
+    }
+  }, {passive:true});
+  // Souris (Mac) : double-clic sur l'image = like.
+  zones.addEventListener('dblclick', e=>{ e.preventDefault(); likeCurrent(); });
 
   document.addEventListener('keydown', e=>{
     if(!lockEl.classList.contains('show') && nameModal.classList.contains('open')) return;

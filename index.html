@@ -466,7 +466,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.02';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.03';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -634,28 +634,46 @@
   // Empêche le verrouillage auto / retour à l'accueil pendant un partage ou un sélecteur de fichier
   // (la feuille de partage iOS et le sélecteur provoquent un blur/visibilitychange transitoire).
   function ioGuard(on){ if(on){ state.ioBusy=true; } else { setTimeout(()=>{ state.ioBusy=false; }, 1500); } }
+  // Lit les photos UNE PAR UNE (curseur) pour ne jamais tout charger en mémoire (évite le crash iOS).
+  // Chaque image chiffrée est enveloppée dans un petit Blob (le navigateur peut la décharger sur disque).
+  function collectPhotosStreaming(onProgress){
+    return new Promise((res,rej)=>{
+      const parts=[]; const meta=[]; let n=0;
+      tx('photos','readonly').then(store=>{
+        const req=store.openCursor();
+        req.onsuccess=()=>{ const cur=req.result;
+          if(!cur){ res({parts, meta}); return; }
+          const p=cur.value;
+          const len=(p.dataCt && p.dataCt.byteLength!==undefined)?p.dataCt.byteLength:(p.dataCt?p.dataCt.length:0);
+          meta.push({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCtLen:len });
+          parts.push(new Blob([p.dataCt]));
+          n++; if(onProgress && n%20===0) onProgress(n);
+          cur.continue();
+        };
+        req.onerror=()=>rej(req.error);
+      }).catch(rej);
+    });
+  }
   async function exportVault(){
     if(!state.key){ showToast('Déverrouille le coffre d\'abord'); return; }
     ioGuard(true);
     try{
+      showToast('Préparation de l\'export…');
       const vault=await idbGet('meta','vault'); if(!vault){ showToast('Aucun coffre'); return; }
       const st=await idbGet('meta','state');
-      const photos=await idbGetAll('photos');
-      // Format binaire v2 : petit manifeste (ivs/metas en base64) + octets bruts des images concaténés.
-      // On évite ainsi une chaîne base64 géante en mémoire (crash iOS avec beaucoup de photos).
-      const bytesLen=x=> (x && x.byteLength!==undefined) ? x.byteLength : (x?x.length:0);
+      const {parts:imgParts, meta:photoMeta}=await collectPhotosStreaming(n=>showToast('Préparation… '+n+' photos'));
+      // Format binaire v2 : "DIAPO1" + longueur manifeste (uint32) + manifeste JSON + octets bruts des images.
       const manifest={
         format:EXPORT_FORMAT, version:2, exportedAt:Date.now(),
         vault:{ salt:abToB64(vault.salt), iters:vault.iters, verIv:abToB64(vault.verIv), verCt:abToB64(vault.verCt) },
         state: st ? { iv:abToB64(st.iv), ct:abToB64(st.ct) } : null,
-        photos: photos.map(p=>({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCtLen:bytesLen(p.dataCt) }))
+        photos: photoMeta
       };
       const manifestBytes=enc.encode(JSON.stringify(manifest));
       const header=new Uint8Array(10); header.set(enc.encode('DIAPO1'),0);
       new DataView(header.buffer).setUint32(6, manifestBytes.length, false); // big-endian
-      const parts=[header, manifestBytes];
-      for(const p of photos){ parts.push(p.dataCt); }   // octets bruts (ArrayBuffer), pas de base64
-      const blob=new Blob(parts, {type:'application/octet-stream'});
+      const blob=new Blob([header, manifestBytes, ...imgParts], {type:'application/octet-stream'});
+      const sizeMB=(blob.size/1048576).toFixed(1); showToast('Ouverture du partage… ('+sizeMB+' Mo)');
       const d=new Date(); const p2=n=>('0'+n).slice(-2);
       const stamp=d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes());
       const fname='diaporama-coffre-'+stamp+'.diapo';
@@ -667,16 +685,16 @@
           await navigator.share({files:[file], title:'Coffre diaporama'});
           shared=true;
         }
-      }catch(err){ if(err && err.name==='AbortError'){ shared=true; } /* annulé : ne pas re-télécharger */ }
+      }catch(err){ if(err && err.name==='AbortError'){ showToast('Partage annulé'); return; } }
       if(!shared){
         // Bureau : téléchargement classique
         const url=URL.createObjectURL(blob);
         const a=document.createElement('a'); a.href=url; a.download=fname; a.rel='noopener';
         document.body.appendChild(a); a.click();
-        setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 2000);
+        setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 3000);
       }
-      showToast(photos.length+' photo(s) exportée(s)');
-    }catch(e){ showToast('Erreur à l\'export'); }
+      showToast(photoMeta.length+' photo(s) · '+sizeMB+' Mo exportées');
+    }catch(e){ showToast('Erreur export : '+((e&&e.message)||e)); }
     finally{ ioGuard(false); }
   }
   function importVault(){

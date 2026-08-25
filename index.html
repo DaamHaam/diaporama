@@ -315,6 +315,12 @@
           <button class="allbtn" id="filterAll">Tous les groupes</button>
         </div>
         <div style="padding-top:20px">
+          <div class="lbl">Sauvegarde / transfert</div>
+          <div class="hint">Exporte tout le coffre (photos, titres, classement, points) dans un fichier chiffré par ton code. Réimporte-le sur un autre appareil (Mac…) avec le même code.</div>
+          <button class="big" id="exportVault">⬇️ Exporter le coffre</button>
+          <button class="big" id="importVault" style="background:var(--panel2);border:1px solid var(--line)">⬆️ Importer un coffre</button>
+        </div>
+        <div style="padding-top:20px">
           <button class="big danger" id="changePin">Changer le code</button>
           <button class="big danger" id="lockNow">🔒 Verrouiller maintenant</button>
         </div>
@@ -479,6 +485,10 @@
   async function decBuf(key, iv, ct){ return subtle.decrypt({name:'AES-GCM', iv}, key, ct); }
   async function encJSON(key, obj){ return encBuf(key, enc.encode(JSON.stringify(obj))); }
   async function decJSON(key, iv, ct){ return JSON.parse(dec.decode(await decBuf(key, iv, ct))); }
+  // Base64 <-> binaire (pour sérialiser le coffre chiffré dans un fichier)
+  function abToB64(buf){ const b=new Uint8Array(buf); let s=''; const chunk=0x8000;
+    for(let i=0;i<b.length;i+=chunk){ s+=String.fromCharCode.apply(null, b.subarray(i,i+chunk)); } return btoa(s); }
+  function b64ToU8(str){ const s=atob(str); const u=new Uint8Array(s.length); for(let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u; }
 
   // ================= Vault =================
   async function hasVault(){ return !!(await idbGet('meta','vault')); }
@@ -558,6 +568,77 @@
     for(const it of state.items){ try{URL.revokeObjectURL(it.url);}catch(e){} }
     state.items=[]; state.order=[]; state.key=null;
     location.reload();
+  }
+
+  // ================= Export / Import du coffre =================
+  // Le fichier embarque les données DÉJÀ chiffrées (photos + réglages) + le sel/jeton du coffre.
+  // Il reste illisible sans le code. Sert aussi de sauvegarde complète.
+  const EXPORT_FORMAT='diapo-vault-export';
+  async function exportVault(){
+    if(!state.key){ showToast('Déverrouille le coffre d\'abord'); return; }
+    try{
+      const vault=await idbGet('meta','vault'); if(!vault){ showToast('Aucun coffre'); return; }
+      const st=await idbGet('meta','state');
+      const photos=await idbGetAll('photos');
+      const payload={
+        format:EXPORT_FORMAT, version:1, exportedAt:Date.now(),
+        vault:{ salt:abToB64(vault.salt), iters:vault.iters, verIv:abToB64(vault.verIv), verCt:abToB64(vault.verCt) },
+        state: st ? { iv:abToB64(st.iv), ct:abToB64(st.ct) } : null,
+        photos: photos.map(p=>({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCt:abToB64(p.dataCt) }))
+      };
+      const blob=new Blob([JSON.stringify(payload)], {type:'application/octet-stream'});
+      const url=URL.createObjectURL(blob);
+      const d=new Date(); const p2=n=>('0'+n).slice(-2);
+      const stamp=d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes());
+      const a=document.createElement('a'); a.href=url; a.download='diaporama-coffre-'+stamp+'.diapo';
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 2000);
+      showToast(photos.length+' photo(s) exportée(s)');
+    }catch(e){ showToast('Erreur à l\'export'); }
+  }
+  function importVault(){
+    if(!state.key){ showToast('Déverrouille le coffre d\'abord'); return; }
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.diapo,application/json,application/octet-stream';
+    inp.addEventListener('change', async ()=>{
+      const f=inp.files && inp.files[0]; if(!f) return;
+      let payload;
+      try{ payload=JSON.parse(await f.text()); }catch(e){ showToast('Fichier illisible'); return; }
+      if(!payload || payload.format!==EXPORT_FORMAT || !payload.vault){ showToast('Fichier non reconnu'); return; }
+      const pin=prompt('Code de chiffrement du fichier :'); if(pin===null) return;
+      let impKey;
+      try{
+        impKey=await deriveKey(pin, b64ToU8(payload.vault.salt), payload.vault.iters||ITERS);
+        const pt=await decBuf(impKey, b64ToU8(payload.vault.verIv), b64ToU8(payload.vault.verCt));
+        if(dec.decode(pt)!==VTOKEN){ showToast('Code incorrect'); return; }
+      }catch(e){ showToast('Code incorrect'); return; }
+      showToast('Import en cours…');
+      // Réglages/classement/points du fichier (on ne reprend QUE classement + points)
+      let impState={};
+      if(payload.state){ try{ impState=await decJSON(impKey, b64ToU8(payload.state.iv), b64ToU8(payload.state.ct)); }catch(e){} }
+      // Photos : fusion, dédoublonnage par id, re-chiffrées avec la clé LOCALE
+      const existing=new Set(state.items.map(x=>x.id)); let added=0;
+      for(const p of (payload.photos||[])){
+        if(existing.has(p.id)) continue;
+        try{
+          const buf=await decBuf(impKey, b64ToU8(p.dataIv), b64ToU8(p.dataCt));
+          const m=await decJSON(impKey, b64ToU8(p.metaIv), b64ToU8(p.metaCt));
+          const blob=new Blob([buf], {type:m.type||'image/png'});
+          const it={id:p.id, title:m.title||'', url:URL.createObjectURL(blob), type:m.type||'image/png', createdAt:m.createdAt||Date.now()};
+          state.items.push(it); await savePhotoWithKey(state.key, it, blob);
+          existing.add(p.id); added++;
+        }catch(e){}
+      }
+      // Points : on ADDITIONNE. Classement # : on garde l'ordre du Mac, on ajoute les titres nouveaux.
+      if(impState.scores && typeof impState.scores==='object'){
+        for(const t in impState.scores){ state.scores[t]=(state.scores[t]||0)+(+impState.scores[t]||0); }
+      }
+      if(Array.isArray(impState.groupOrder)){
+        for(const t of impState.groupOrder){ if(!state.groupOrder.includes(t)) state.groupOrder.push(t); }
+      }
+      await saveState(); afterDataChange();
+      showToast(added+' photo(s) importée(s)');
+    });
+    inp.click();
   }
 
   // ================= Titres / groupes =================
@@ -863,6 +944,8 @@
   $('#setFull').addEventListener('change', e=>{ setImmersive(e.target.checked); });
   $('#lockNow').addEventListener('click', ()=>{ closePanel(); doLock(); });
   $('#changePin').addEventListener('click', startChangePin);
+  $('#exportVault').addEventListener('click', exportVault);
+  $('#importVault').addEventListener('click', importVault);
 
   function renderFilters(){
     const box=$('#filterChips'); box.innerHTML=''; const g=groups(); const titles=Object.keys(g);

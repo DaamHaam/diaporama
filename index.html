@@ -493,7 +493,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.06';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.07';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -1330,6 +1330,14 @@
   }, {passive:true});
   // Souris (Mac) : double-clic sur l'image = like.
   zones.addEventListener('dblclick', e=>{ e.preventDefault(); likeCurrent(); });
+  // Souris (Mac) : approcher le bas de l'écran ré-affiche la barre de menus (comme un lecteur vidéo).
+  // Gated sur pointeur fin → aucun effet sur iPhone (le tactile passe par les balayages).
+  if(window.matchMedia && window.matchMedia('(pointer: fine)').matches){
+    window.addEventListener('mousemove', e=>{
+      if(state.view!=='slideshow') return;
+      if(e.clientY >= window.innerHeight - 90) revealChrome();
+    }, {passive:true});
+  }
 
   document.addEventListener('keydown', e=>{
     if(!lockEl.classList.contains('show') && nameModal.classList.contains('open')) return;
@@ -1343,6 +1351,7 @@
     if(k===' '){ e.preventDefault(); if(state.order.length) togglePause(); }
     else if(k==='ArrowRight') next();
     else if(k==='ArrowLeft') prev();
+    else if(k==='ArrowDown'){ e.preventDefault(); setImmersive(false); pauseIfPlaying(); }  // Mac : ramener les menus + pause (comme balayage ↑)
     else if(k==='ArrowUp'){ state.showRank=!state.showRank; $('#setRank').checked=state.showRank; updateRank(titleOf(currentItem()||{})); saveState(); }
     else if(k==='Delete'||k==='Backspace') deleteCurrent();
     else if(k==='0'){ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); }

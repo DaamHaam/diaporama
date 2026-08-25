@@ -326,6 +326,14 @@
           <label class="sw"><input type="checkbox" id="setTitle" checked><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
+          <div><div class="lbl">Plusieurs cœurs</div><div class="sub">Reliker une photo ajoute un cœur (max 3)</div></div>
+          <label class="sw"><input type="checkbox" id="setMultiLike"><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div class="row">
+          <div><div class="lbl">Cœur = point au classement</div><div class="sub">Chaque cœur ajoute +1 au Classement de la catégorie</div></div>
+          <label class="sw"><input type="checkbox" id="setLikeScores"><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div class="row">
           <div><div class="lbl">Afficher le rang</div><div class="sub">Numéro doré en haut à droite</div></div>
           <label class="sw"><input type="checkbox" id="setRank" checked><span class="track"></span><span class="knob"></span></label>
         </div>
@@ -466,7 +474,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.04';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.05';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -483,9 +491,11 @@
     showRank: true,       // rang manuel (# doré, haut droite)
     showTitle: true,      // titre de la catégorie (+ ❤️) en haut à gauche, persistant
     showScoreThumbs: false, // vignettes dans l'onglet Classement, masquées par défaut
+    multiLike: false,     // « plusieurs cœurs » : reliker une photo ajoute un cœur (plafond 3)
+    likeScores: false,    // « un cœur = +1 au classement » de la catégorie de la photo
     groupOrder: [],       // ordre du rang manuel des titres (indépendant des scores)
     scores: {},           // {titre: points} — persistant dans le coffre
-    likes: new Set(),     // ids des photos likées — session uniquement (effacé au rechargement)
+    likes: new Map(),     // id → nombre de cœurs (1-3) — session uniquement (effacé au rechargement)
     boostPhase: 0,        // 0=aucun like, 1=cycle neutre en cours avant boost, 2=boost actif
     fairCycle: false,     // la playlist courante a-t-elle été construite en mode équitable ?
     timer: null,
@@ -593,6 +603,7 @@
     const o={groupOrder:state.groupOrder, delay:state.delay, random:state.random, seriesMode:state.seriesMode,
              seriesSize:state.seriesSize, fairMode:state.fairMode, showRank:state.showRank,
              showTitle:state.showTitle, showScoreThumbs:state.showScoreThumbs,
+             multiLike:state.multiLike, likeScores:state.likeScores,
              lastTitle:state.lastTitle, scores:state.scores};
     const e=await encJSON(state.key, o);
     await idbPut('meta',{k:'state', iv:e.iv, ct:e.ct});
@@ -605,6 +616,7 @@
       state.seriesMode=!!o.seriesMode; state.seriesSize=o.seriesSize||3; state.fairMode=!!o.fairMode;
       state.showRank=o.showRank??true; state.lastTitle=o.lastTitle||'';
       state.showTitle=o.showTitle??true; state.showScoreThumbs=!!o.showScoreThumbs;
+      state.multiLike=!!o.multiLike; state.likeScores=!!o.likeScores;
       state.scores=(o.scores && typeof o.scores==='object')?o.scores:{};
     }catch(e){} }
     // Photos
@@ -863,7 +875,8 @@
     const it=currentItem();
     if(state.view!=='slideshow' || !it || !state.showTitle){ hud.classList.add('hidden'); return; }
     hud.classList.remove('hidden');
-    hud.textContent=(state.likes.has(it.id)?'❤️ ':'')+(titleOf(it)||'(sans titre)');
+    const n=state.likes.get(it.id)||0;
+    hud.textContent=(titleOf(it)||'(sans titre)')+(n?' '+'❤️'.repeat(n):'');
   }
   function togglePause(){ state.paused=!state.paused; $('#btnPlay').textContent=state.paused?'▶️':'⏸';
     pausePill.textContent=state.paused?'⏸':'▶️'; pausePill.classList.add('show'); setTimeout(()=>pausePill.classList.remove('show'),500);
@@ -957,8 +970,12 @@
     if(state.view!=='slideshow') return;
     const it=currentItem(); if(!it) return;
     const now=Date.now(); if(now-lastLikeTs<400) return; lastLikeTs=now; // anti double-déclenchement tactile/souris
-    state.likes.add(it.id);
-    if(state.boostPhase===0) state.boostPhase=1; // 1er like → un cycle neutre complet, puis boost
+    const cur=state.likes.get(it.id)||0;
+    const max=state.multiLike?3:1;
+    if(cur>=max) return;                          // déjà au plafond → aucun cœur ni point ajouté
+    state.likes.set(it.id, cur+1);
+    if(state.boostPhase===0) state.boostPhase=1;  // 1er like → un cycle neutre complet, puis boost
+    if(state.likeScores){ const t=titleOf(it); if(t) addPointsTo(t, 1); } // option : un cœur = +1 au classement
     showHeart(); updateTitleHud();
   }
 
@@ -1089,6 +1106,7 @@
     $('#setSeriesSize').value=state.seriesSize; $('#seriesVal').textContent=state.seriesSize;
     $('#setFair').checked=state.fairMode; $('#setRank').checked=state.showRank;
     $('#setTitle').checked=state.showTitle;
+    $('#setMultiLike').checked=state.multiLike; $('#setLikeScores').checked=state.likeScores;
     $('#setFull').checked=state.immersive;
   }
   $('#setDelay').addEventListener('input', e=>{ state.delay=+e.target.value*1000; $('#delayVal').textContent=(+e.target.value)+' s'; saveState(); });
@@ -1098,6 +1116,8 @@
   $('#setFair').addEventListener('change', e=>{ state.fairMode=e.target.checked; if(state.fairMode&&state.seriesMode){state.seriesMode=false;$('#setSeries').checked=false;} buildPlaylist(); show(); saveState(); });
   $('#setRank').addEventListener('change', e=>{ state.showRank=e.target.checked; updateRank(titleOf(currentItem()||{})); saveState(); });
   $('#setTitle').addEventListener('change', e=>{ state.showTitle=e.target.checked; updateTitleHud(); saveState(); });
+  $('#setMultiLike').addEventListener('change', e=>{ state.multiLike=e.target.checked; saveState(); });
+  $('#setLikeScores').addEventListener('change', e=>{ state.likeScores=e.target.checked; saveState(); });
   $('#setFull').addEventListener('change', e=>{ setImmersive(e.target.checked); });
   $('#lockNow').addEventListener('click', ()=>{ closePanel(); doLock(); });
   $('#changePin').addEventListener('click', startChangePin);

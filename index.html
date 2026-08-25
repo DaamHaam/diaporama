@@ -208,6 +208,8 @@
   .home-info{color:var(--muted); font-size:14px; text-align:center; min-height:18px;}
   #version{position:absolute; right:calc(env(safe-area-inset-right) + 10px); bottom:calc(env(safe-area-inset-bottom) + 8px);
     font-size:10px; color:var(--muted); opacity:.55; letter-spacing:.3px; pointer-events:none;}
+  #lockVersion{position:absolute; left:0; right:0; bottom:calc(env(safe-area-inset-bottom) + 10px); text-align:center;
+    font-size:11px; color:var(--muted); opacity:.5; letter-spacing:.3px; pointer-events:none;}
 
   /* ---- Écran de verrouillage / cover ---- */
   #cover{position:absolute; inset:0; z-index:95; background:#000; opacity:0; pointer-events:none;}
@@ -442,7 +444,7 @@
     <button id="homePlay" class="home-play">▶️ Lancer le diaporama</button>
     <div id="homeInfo" class="home-info"></div>
   </div>
-  <div id="version">v0.01</div>
+  <div id="version"></div>
 </div>
 
 <!-- Cover (anti fuite dans l'aperçu multitâche) -->
@@ -456,6 +458,7 @@
   <div id="dots"></div>
   <div id="keypad"></div>
   <button id="wipeBtn" class="hidden">Code oublié ? Tout effacer</button>
+  <div id="lockVersion"></div>
 </div>
 
 <script>
@@ -463,6 +466,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
+  const APP_VERSION='0.02';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -1313,6 +1317,7 @@
   // ================= Init =================
   async function init(){
     buildKeypad(); renderDots();
+    $('#version').textContent='v'+APP_VERSION; $('#lockVersion').textContent='v'+APP_VERSION;
     if(!subtle){ setLock('Indisponible','Le chiffrement nécessite HTTPS (ouvre la version en ligne).', false); lockEl.classList.add('show'); return; }
     try{
       if(await hasVault()) showLockScreen('unlock');

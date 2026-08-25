@@ -466,7 +466,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.03';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.04';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -753,9 +753,10 @@
           existing.add(p.id); added++;
         }catch(e){}
       }
-      // Points : on ADDITIONNE. Rang # : on garde l'ordre du Mac, on ajoute les titres nouveaux.
+      // Points : on REMPLACE par la valeur du fichier (ré-import idempotent, plus de doublement).
+      // Le fichier fait foi pour les catégories qu'il contient ; les autres scores du Mac sont conservés.
       if(impState.scores && typeof impState.scores==='object'){
-        for(const t in impState.scores){ state.scores[t]=(state.scores[t]||0)+(+impState.scores[t]||0); }
+        for(const t in impState.scores){ state.scores[t]=(+impState.scores[t]||0); }
       }
       if(Array.isArray(impState.groupOrder)){
         for(const t of impState.groupOrder){ if(!state.groupOrder.includes(t)) state.groupOrder.push(t); }
@@ -911,6 +912,9 @@
   }
   async function deleteCurrent(){
     const it=currentItem(); if(!it) return;
+    const t=titleOf(it);
+    if(!confirm('Supprimer définitivement cette image'+(t?(' de « '+t+' »'):'')+' ?\nCette action est irréversible.')) return;
+    clearTimer();                       // évite qu'un minuteur en attente n'affiche une image supprimée
     const keep=state.index;
     try{ URL.revokeObjectURL(it.url); }catch(e){}
     state.items=state.items.filter(x=>x.id!==it.id);

@@ -94,6 +94,11 @@
   #seGrid button.minus{color:var(--danger); border-color:var(--danger);}
   #seGrid button.plus{color:var(--gold);}
   #seGrid button:active{background:#3a3a3c;}
+  #exportModal{position:absolute; inset:0; z-index:82; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:22px;
+    opacity:0; pointer-events:none; transition:opacity .2s;}
+  #exportModal.open{opacity:1; pointer-events:auto;}
+  #exProgress{text-align:center; font-size:15px; font-weight:700; margin:12px 0;}
+  #exShare[disabled]{opacity:.5;}
 
   /* ---- Barre ---- */
   #bar{position:absolute; left:0; right:0; bottom:0; z-index:30; height:calc(var(--bar-h) + env(safe-area-inset-bottom));
@@ -438,6 +443,20 @@
   </div>
 </div>
 
+<div id="exportModal">
+  <div class="card">
+    <h3 id="exTitle">Exporter le coffre</h3>
+    <div class="hint" id="exInfo"></div>
+    <div id="exProgress"></div>
+    <div class="card-actions">
+      <button class="btn-ok" id="exShare" disabled>Préparation…</button>
+    </div>
+    <div class="card-actions">
+      <button id="exCancel" style="background:var(--panel2);border:1px solid var(--line);color:#fff">Fermer</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <div id="pasteZone" contenteditable="true"></div>
 
@@ -474,7 +493,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.05';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.06';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -646,135 +665,199 @@
   // Empêche le verrouillage auto / retour à l'accueil pendant un partage ou un sélecteur de fichier
   // (la feuille de partage iOS et le sélecteur provoquent un blur/visibilitychange transitoire).
   function ioGuard(on){ if(on){ state.ioBusy=true; } else { setTimeout(()=>{ state.ioBusy=false; }, 1500); } }
-  // Lit les photos UNE PAR UNE (curseur) pour ne jamais tout charger en mémoire (évite le crash iOS).
-  // Chaque image chiffrée est enveloppée dans un petit Blob (le navigateur peut la décharger sur disque).
-  function collectPhotosStreaming(onProgress){
+  // Export découpé en plusieurs fichiers : sur iPhone, un Blob trop gros (~700 Mo+) fait dépasser
+  // le plafond mémoire de WebKit → l'onglet est tué au moment du partage. On produit donc des fichiers
+  // de ~250 Mo max, partagés un par un. À l'import, la fusion par id rend l'ordre indifférent.
+  const CHUNK_BYTES=250*1048576;   // taille max d'un fichier-partie (marge sous le plafond mémoire iOS)
+  // Taille chiffrée de chaque photo, lue au curseur (une photo à la fois) — sert à planifier le découpage.
+  function planPhotoSizes(){
     return new Promise((res,rej)=>{
-      const parts=[]; const meta=[]; let n=0;
+      const list=[];
       tx('photos','readonly').then(store=>{
         const req=store.openCursor();
         req.onsuccess=()=>{ const cur=req.result;
-          if(!cur){ res({parts, meta}); return; }
+          if(!cur){ res(list); return; }
           const p=cur.value;
           const len=(p.dataCt && p.dataCt.byteLength!==undefined)?p.dataCt.byteLength:(p.dataCt?p.dataCt.length:0);
-          meta.push({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCtLen:len });
-          parts.push(new Blob([p.dataCt]));
-          n++; if(onProgress && n%20===0) onProgress(n);
-          cur.continue();
+          list.push({id:p.id, len}); cur.continue();
         };
         req.onerror=()=>rej(req.error);
       }).catch(rej);
     });
   }
+  // Regroupe les ids en tranches dont le total chiffré reste sous `budget`.
+  function planChunks(sizes, budget){
+    const chunks=[]; let cur=[]; let sz=0;
+    for(const e of sizes){
+      if(cur.length && sz+e.len>budget){ chunks.push(cur); cur=[]; sz=0; }
+      cur.push(e.id); sz+=e.len;
+    }
+    if(cur.length) chunks.push(cur);
+    return chunks;
+  }
+  // Construit le fichier .diapo d'UNE partie : ne charge en mémoire que les photos de cette tranche.
+  // Chaque partie est un fichier complet (en-tête coffre + points) → n'importe laquelle est importable seule.
+  async function buildChunkFile(vault, st, ids, part, parts, stamp){
+    const imgParts=[]; const photoMeta=[];
+    for(const id of ids){
+      const p=await idbGet('photos', id); if(!p) continue;   // transaction fraîche par photo (sûr avec await)
+      const len=(p.dataCt && p.dataCt.byteLength!==undefined)?p.dataCt.byteLength:(p.dataCt?p.dataCt.length:0);
+      photoMeta.push({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCtLen:len });
+      imgParts.push(new Blob([p.dataCt]));
+    }
+    const manifest={
+      format:EXPORT_FORMAT, version:2, exportedAt:Date.now(), part, parts,
+      vault:{ salt:abToB64(vault.salt), iters:vault.iters, verIv:abToB64(vault.verIv), verCt:abToB64(vault.verCt) },
+      state: st ? { iv:abToB64(st.iv), ct:abToB64(st.ct) } : null,
+      photos: photoMeta
+    };
+    const manifestBytes=enc.encode(JSON.stringify(manifest));
+    const header=new Uint8Array(10); header.set(enc.encode('DIAPO1'),0);
+    new DataView(header.buffer).setUint32(6, manifestBytes.length, false); // big-endian
+    const blob=new Blob([header, manifestBytes, ...imgParts], {type:'application/octet-stream'});
+    const suffix = parts>1 ? '-'+part+'sur'+parts : '';
+    const fname='diaporama-coffre-'+stamp+suffix+'.diapo';
+    return { blob, fname, file:new File([blob], fname, {type:'application/octet-stream'}) };
+  }
+
+  const exportModal=$('#exportModal');
+  let exSession=null;   // { vault, st, chunks, stamp, idx, ready, done }
+  function closeExport(){ exportModal.classList.remove('open'); exSession=null; const b=$('#exShare'); b.disabled=true; b.textContent='Préparation…'; ioGuard(false); }
   async function exportVault(){
     if(!state.key){ showToast('Déverrouille le coffre d\'abord'); return; }
     ioGuard(true);
     try{
-      showToast('Préparation de l\'export…');
-      const vault=await idbGet('meta','vault'); if(!vault){ showToast('Aucun coffre'); return; }
+      const vault=await idbGet('meta','vault'); if(!vault){ showToast('Aucun coffre'); ioGuard(false); return; }
       const st=await idbGet('meta','state');
-      const {parts:imgParts, meta:photoMeta}=await collectPhotosStreaming(n=>showToast('Préparation… '+n+' photos'));
-      // Format binaire v2 : "DIAPO1" + longueur manifeste (uint32) + manifeste JSON + octets bruts des images.
-      const manifest={
-        format:EXPORT_FORMAT, version:2, exportedAt:Date.now(),
-        vault:{ salt:abToB64(vault.salt), iters:vault.iters, verIv:abToB64(vault.verIv), verCt:abToB64(vault.verCt) },
-        state: st ? { iv:abToB64(st.iv), ct:abToB64(st.ct) } : null,
-        photos: photoMeta
-      };
-      const manifestBytes=enc.encode(JSON.stringify(manifest));
-      const header=new Uint8Array(10); header.set(enc.encode('DIAPO1'),0);
-      new DataView(header.buffer).setUint32(6, manifestBytes.length, false); // big-endian
-      const blob=new Blob([header, manifestBytes, ...imgParts], {type:'application/octet-stream'});
-      const sizeMB=(blob.size/1048576).toFixed(1); showToast('Ouverture du partage… ('+sizeMB+' Mo)');
+      const sizes=await planPhotoSizes();
+      if(!sizes.length){ showToast('Aucune photo à exporter'); ioGuard(false); return; }
+      const chunks=planChunks(sizes, CHUNK_BYTES);
       const d=new Date(); const p2=n=>('0'+n).slice(-2);
       const stamp=d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes());
-      const fname='diaporama-coffre-'+stamp+'.diapo';
-      // iOS : feuille de partage (« Enregistrer dans Fichiers »). Évite que Safari quitte l'app en ouvrant le blob.
-      let shared=false;
-      try{
-        const file=new File([blob], fname, {type:'application/octet-stream'});
-        if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-          await navigator.share({files:[file], title:'Coffre diaporama'});
-          shared=true;
-        }
-      }catch(err){ if(err && err.name==='AbortError'){ showToast('Partage annulé'); return; } }
-      if(!shared){
-        // Bureau : téléchargement classique
-        const url=URL.createObjectURL(blob);
-        const a=document.createElement('a'); a.href=url; a.download=fname; a.rel='noopener';
-        document.body.appendChild(a); a.click();
-        setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 3000);
+      const totalMB=Math.round(sizes.reduce((a,b)=>a+b.len,0)/1048576);
+      exSession={ vault, st, chunks, stamp, idx:0, ready:null, done:0 };
+      $('#exInfo').textContent = chunks.length>1
+        ? sizes.length+' photos · ~'+totalMB+' Mo → '+chunks.length+' fichiers. Partage chaque partie (« Enregistrer dans Fichiers »). Toutes les parties vont ensemble : garde-les au même endroit.'
+        : sizes.length+' photos · ~'+totalMB+' Mo → 1 fichier.';
+      exportModal.classList.add('open');
+      await prepareNextPart();
+    }catch(e){ showToast('Erreur export : '+((e&&e.message)||e)); closeExport(); }
+  }
+  // Pré-construit le fichier de la partie courante AVANT que l'utilisateur ne tape « Partager »,
+  // pour que le clic appelle navigator.share() sans await intermédiaire (geste utilisateur exigé par iOS).
+  async function prepareNextPart(){
+    const s=exSession; if(!s) return;
+    const btn=$('#exShare');
+    if(s.idx>=s.chunks.length){
+      $('#exProgress').textContent='✅ Export terminé ('+s.chunks.length+'/'+s.chunks.length+')';
+      btn.disabled=true; btn.textContent='Terminé'; return;
+    }
+    const part=s.idx+1, parts=s.chunks.length;
+    btn.disabled=true; btn.textContent='Préparation partie '+part+'/'+parts+'…';
+    $('#exProgress').textContent='Partie '+part+'/'+parts+' — préparation…';
+    s.ready=await buildChunkFile(s.vault, s.st, s.chunks[s.idx], part, parts, s.stamp);
+    const mb=Math.round(s.ready.blob.size/1048576);
+    btn.disabled=false; btn.textContent=(parts>1?'📤 Partager partie '+part+'/'+parts:'📤 Partager')+' ('+mb+' Mo)';
+    $('#exProgress').textContent='Partie '+part+'/'+parts+' prête ('+mb+' Mo)'+(s.done?' · '+s.done+' déjà enregistrée(s)':'');
+  }
+  async function shareCurrentPart(){
+    const s=exSession; if(!s || !s.ready) return;
+    const { file, blob, fname }=s.ready;
+    let shared=false;
+    try{
+      if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+        await navigator.share({files:[file], title:'Coffre diaporama'});
+        shared=true;
       }
-      showToast(photoMeta.length+' photo(s) · '+sizeMB+' Mo exportées');
-    }catch(e){ showToast('Erreur export : '+((e&&e.message)||e)); }
-    finally{ ioGuard(false); }
+    }catch(err){ if(err && err.name==='AbortError'){ showToast('Partage annulé'); return; } }   // reste sur la même partie
+    if(!shared){
+      // Bureau : téléchargement classique
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=fname; a.rel='noopener';
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 3000);
+    }
+    s.done++; s.idx++; s.ready=null;   // libère la mémoire de la partie avant de préparer la suivante
+    await prepareNextPart();
   }
   function importVault(){
     if(!state.key){ showToast('Déverrouille le coffre d\'abord'); return; }
-    const inp=document.createElement('input'); inp.type='file'; inp.accept='.diapo,application/json,application/octet-stream';
+    // multiple : accepte plusieurs fichiers-parties (export découpé) d'un coup.
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.diapo,application/json,application/octet-stream'; inp.multiple=true;
     ioGuard(true);
     let picked=false;
     const onFocus=()=>{ window.removeEventListener('focus',onFocus); if(!picked) ioGuard(false); }; // annulé
     window.addEventListener('focus', onFocus);
     inp.addEventListener('change', async ()=>{
       picked=true;
-      try{ await doImport(inp.files && inp.files[0]); }
+      try{ await runImport([...(inp.files||[])]); }
       finally{ ioGuard(false); }
     });
     inp.click();
   }
-  async function doImport(f){
-      if(!f){ return; }
-      const buf=await f.arrayBuffer(); const u8=new Uint8Array(buf);
-      let payload=null, dataBuf=null, dataOff=0;   // dataBuf!=null => format binaire v2
-      if(u8.length>=10 && dec.decode(u8.subarray(0,6))==='DIAPO1'){
-        try{
-          const mlen=new DataView(buf).getUint32(6, false);
-          payload=JSON.parse(dec.decode(u8.subarray(10, 10+mlen)));
-          dataBuf=buf; dataOff=10+mlen;
-        }catch(e){ showToast('Fichier illisible'); return; }
-      } else {
-        try{ payload=JSON.parse(dec.decode(u8)); }catch(e){ showToast('Fichier illisible'); return; }
-      }
-      if(!payload || payload.format!==EXPORT_FORMAT || !payload.vault){ showToast('Fichier non reconnu'); return; }
-      const pin=prompt('Code de chiffrement du fichier :'); if(pin===null) return;
-      let impKey;
+  async function runImport(files){
+    if(!files.length) return;
+    // Ordonne par numéro de partie si le nom le contient (…-2sur5) — purement cosmétique.
+    files.sort((a,b)=>{ const m=s=>{const r=/-(\d+)sur\d+\.diapo$/i.exec(s.name||''); return r?+r[1]:0;}; return m(a)-m(b); });
+    const pin=prompt(files.length>1?('Code de chiffrement des '+files.length+' fichiers :'):'Code de chiffrement du fichier :');
+    if(pin===null) return;
+    showToast('Import en cours…');
+    let totalAdded=0, bad=0, badCode=false;
+    for(const f of files){
+      try{ totalAdded+=await importOneFile(f, pin); }
+      catch(e){ if(e && e.message==='badcode'){ badCode=true; break; } bad++; }
+    }
+    await saveState(); afterDataChange();
+    if(badCode){ showToast('Code incorrect'); return; }
+    showToast(totalAdded+' photo(s) importée(s)'+(bad?(' · '+bad+' fichier(s) ignoré(s)'):''));
+  }
+  // Importe UN fichier avec un code déjà connu. Renvoie le nb de photos ajoutées. Lève 'badcode' si code faux.
+  async function importOneFile(f, pin){
+    const buf=await f.arrayBuffer(); const u8=new Uint8Array(buf);
+    let payload=null, dataBuf=null, dataOff=0;   // dataBuf!=null => format binaire v2
+    if(u8.length>=10 && dec.decode(u8.subarray(0,6))==='DIAPO1'){
+      const mlen=new DataView(buf).getUint32(6, false);
+      payload=JSON.parse(dec.decode(u8.subarray(10, 10+mlen)));
+      dataBuf=buf; dataOff=10+mlen;
+    } else {
+      payload=JSON.parse(dec.decode(u8));
+    }
+    if(!payload || payload.format!==EXPORT_FORMAT || !payload.vault) throw new Error('badfile');
+    let impKey;
+    try{
+      impKey=await deriveKey(pin, b64ToU8(payload.vault.salt), payload.vault.iters||ITERS);
+      const pt=await decBuf(impKey, b64ToU8(payload.vault.verIv), b64ToU8(payload.vault.verCt));
+      if(dec.decode(pt)!==VTOKEN) throw 0;
+    }catch(e){ throw new Error('badcode'); }
+    // Réglages/classement/points du fichier (on ne reprend QUE classement + points)
+    let impState={};
+    if(payload.state){ try{ impState=await decJSON(impKey, b64ToU8(payload.state.iv), b64ToU8(payload.state.ct)); }catch(e){} }
+    // Photos : fusion, dédoublonnage par id, re-chiffrées avec la clé LOCALE
+    const existing=new Set(state.items.map(x=>x.id)); let added=0;
+    for(const p of (payload.photos||[])){
+      // Octets chiffrés de l'image : depuis la section binaire (v2) ou base64 (v1)
+      let dataCt;
+      if(dataBuf){ dataCt=dataBuf.slice(dataOff, dataOff+p.dataCtLen); dataOff+=p.dataCtLen; }
+      else { dataCt=b64ToU8(p.dataCt); }
+      if(existing.has(p.id)) continue;
       try{
-        impKey=await deriveKey(pin, b64ToU8(payload.vault.salt), payload.vault.iters||ITERS);
-        const pt=await decBuf(impKey, b64ToU8(payload.vault.verIv), b64ToU8(payload.vault.verCt));
-        if(dec.decode(pt)!==VTOKEN){ showToast('Code incorrect'); return; }
-      }catch(e){ showToast('Code incorrect'); return; }
-      showToast('Import en cours…');
-      // Réglages/classement/points du fichier (on ne reprend QUE classement + points)
-      let impState={};
-      if(payload.state){ try{ impState=await decJSON(impKey, b64ToU8(payload.state.iv), b64ToU8(payload.state.ct)); }catch(e){} }
-      // Photos : fusion, dédoublonnage par id, re-chiffrées avec la clé LOCALE
-      const existing=new Set(state.items.map(x=>x.id)); let added=0;
-      for(const p of (payload.photos||[])){
-        // Octets chiffrés de l'image : depuis la section binaire (v2) ou base64 (v1)
-        let dataCt;
-        if(dataBuf){ dataCt=dataBuf.slice(dataOff, dataOff+p.dataCtLen); dataOff+=p.dataCtLen; }
-        else { dataCt=b64ToU8(p.dataCt); }
-        if(existing.has(p.id)) continue;
-        try{
-          const bytes=await decBuf(impKey, b64ToU8(p.dataIv), dataCt);
-          const m=await decJSON(impKey, b64ToU8(p.metaIv), b64ToU8(p.metaCt));
-          const blob=new Blob([bytes], {type:m.type||'image/png'});
-          const it={id:p.id, title:m.title||'', url:URL.createObjectURL(blob), type:m.type||'image/png', createdAt:m.createdAt||Date.now()};
-          state.items.push(it); await savePhotoWithKey(state.key, it, blob);
-          existing.add(p.id); added++;
-        }catch(e){}
-      }
-      // Points : on REMPLACE par la valeur du fichier (ré-import idempotent, plus de doublement).
-      // Le fichier fait foi pour les catégories qu'il contient ; les autres scores du Mac sont conservés.
-      if(impState.scores && typeof impState.scores==='object'){
-        for(const t in impState.scores){ state.scores[t]=(+impState.scores[t]||0); }
-      }
-      if(Array.isArray(impState.groupOrder)){
-        for(const t of impState.groupOrder){ if(!state.groupOrder.includes(t)) state.groupOrder.push(t); }
-      }
-      await saveState(); afterDataChange();
-      showToast(added+' photo(s) importée(s)');
+        const bytes=await decBuf(impKey, b64ToU8(p.dataIv), dataCt);
+        const m=await decJSON(impKey, b64ToU8(p.metaIv), b64ToU8(p.metaCt));
+        const blob=new Blob([bytes], {type:m.type||'image/png'});
+        const it={id:p.id, title:m.title||'', url:URL.createObjectURL(blob), type:m.type||'image/png', createdAt:m.createdAt||Date.now()};
+        state.items.push(it); await savePhotoWithKey(state.key, it, blob);
+        existing.add(p.id); added++;
+      }catch(e){}
+    }
+    // Points : on REMPLACE par la valeur du fichier (ré-import idempotent, plus de doublement).
+    // Le fichier fait foi pour les catégories qu'il contient ; les autres scores du Mac sont conservés.
+    if(impState.scores && typeof impState.scores==='object'){
+      for(const t in impState.scores){ state.scores[t]=(+impState.scores[t]||0); }
+    }
+    if(Array.isArray(impState.groupOrder)){
+      for(const t of impState.groupOrder){ if(!state.groupOrder.includes(t)) state.groupOrder.push(t); }
+    }
+    return added;
   }
 
   // ================= Titres / groupes =================
@@ -1122,6 +1205,8 @@
   $('#lockNow').addEventListener('click', ()=>{ closePanel(); doLock(); });
   $('#changePin').addEventListener('click', startChangePin);
   $('#exportVault').addEventListener('click', exportVault);
+  $('#exShare').addEventListener('click', shareCurrentPart);
+  $('#exCancel').addEventListener('click', closeExport);
   $('#importVault').addEventListener('click', importVault);
 
   function renderFilters(){

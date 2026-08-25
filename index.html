@@ -206,6 +206,8 @@
   .home-play{padding:15px 28px; border-radius:16px; background:var(--panel2); border:1px solid var(--line); color:#fff; font-size:18px; font-weight:600;}
   .home-play:active{background:#3a3a3c;}
   .home-info{color:var(--muted); font-size:14px; text-align:center; min-height:18px;}
+  #version{position:absolute; right:calc(env(safe-area-inset-right) + 10px); bottom:calc(env(safe-area-inset-bottom) + 8px);
+    font-size:10px; color:var(--muted); opacity:.55; letter-spacing:.3px; pointer-events:none;}
 
   /* ---- Écran de verrouillage / cover ---- */
   #cover{position:absolute; inset:0; z-index:95; background:#000; opacity:0; pointer-events:none;}
@@ -440,6 +442,7 @@
     <button id="homePlay" class="home-play">▶️ Lancer le diaporama</button>
     <div id="homeInfo" class="home-info"></div>
   </div>
+  <div id="version">v0.01</div>
 </div>
 
 <!-- Cover (anti fuite dans l'aperçu multitâche) -->
@@ -488,6 +491,7 @@
     view: 'home',         // 'home' (écran Coller) | 'slideshow'
     lastActive: 0,        // horodatage de la dernière mise en arrière-plan
     wakeLock: null,       // verrou d'écran pendant le diaporama
+    ioBusy: false,        // export/import en cours : ne pas verrouiller sur blur transitoire
   };
   const GRACE_MS = 5*60*1000; // 5 min sans code au retour
 
@@ -623,8 +627,12 @@
   // Le fichier embarque les données DÉJÀ chiffrées (photos + réglages) + le sel/jeton du coffre.
   // Il reste illisible sans le code. Sert aussi de sauvegarde complète.
   const EXPORT_FORMAT='diapo-vault-export';
+  // Empêche le verrouillage auto / retour à l'accueil pendant un partage ou un sélecteur de fichier
+  // (la feuille de partage iOS et le sélecteur provoquent un blur/visibilitychange transitoire).
+  function ioGuard(on){ if(on){ state.ioBusy=true; } else { setTimeout(()=>{ state.ioBusy=false; }, 1500); } }
   async function exportVault(){
     if(!state.key){ showToast('Déverrouille le coffre d\'abord'); return; }
+    ioGuard(true);
     try{
       const vault=await idbGet('meta','vault'); if(!vault){ showToast('Aucun coffre'); return; }
       const st=await idbGet('meta','state');
@@ -636,20 +644,42 @@
         photos: photos.map(p=>({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCt:abToB64(p.dataCt) }))
       };
       const blob=new Blob([JSON.stringify(payload)], {type:'application/octet-stream'});
-      const url=URL.createObjectURL(blob);
       const d=new Date(); const p2=n=>('0'+n).slice(-2);
       const stamp=d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes());
-      const a=document.createElement('a'); a.href=url; a.download='diaporama-coffre-'+stamp+'.diapo';
+      const fname='diaporama-coffre-'+stamp+'.diapo';
+      // iOS : feuille de partage (« Enregistrer dans Fichiers »). Évite que Safari quitte l'app en ouvrant le blob.
+      try{
+        const file=new File([blob], fname, {type:'application/octet-stream'});
+        if(navigator.canShare && navigator.canShare({files:[file]})){
+          await navigator.share({files:[file], title:'Coffre diaporama'});
+          showToast(photos.length+' photo(s) exportée(s)'); return;
+        }
+      }catch(err){ if(err && err.name==='AbortError') return; /* partage annulé : on n'affiche pas d'erreur */ }
+      // Bureau : téléchargement classique
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=fname; a.rel='noopener';
       document.body.appendChild(a); a.click();
       setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 2000);
       showToast(photos.length+' photo(s) exportée(s)');
     }catch(e){ showToast('Erreur à l\'export'); }
+    finally{ ioGuard(false); }
   }
   function importVault(){
     if(!state.key){ showToast('Déverrouille le coffre d\'abord'); return; }
     const inp=document.createElement('input'); inp.type='file'; inp.accept='.diapo,application/json,application/octet-stream';
+    ioGuard(true);
+    let picked=false;
+    const onFocus=()=>{ window.removeEventListener('focus',onFocus); if(!picked) ioGuard(false); }; // annulé
+    window.addEventListener('focus', onFocus);
     inp.addEventListener('change', async ()=>{
-      const f=inp.files && inp.files[0]; if(!f) return;
+      picked=true;
+      try{ await doImport(inp.files && inp.files[0]); }
+      finally{ ioGuard(false); }
+    });
+    inp.click();
+  }
+  async function doImport(f){
+      if(!f){ return; }
       let payload;
       try{ payload=JSON.parse(await f.text()); }catch(e){ showToast('Fichier illisible'); return; }
       if(!payload || payload.format!==EXPORT_FORMAT || !payload.vault){ showToast('Fichier non reconnu'); return; }
@@ -686,8 +716,6 @@
       }
       await saveState(); afterDataChange();
       showToast(added+' photo(s) importée(s)');
-    });
-    inp.click();
   }
 
   // ================= Titres / groupes =================
@@ -750,14 +778,26 @@
   // ================= Affichage =================
   function clearTimer(){ if(state.timer){ clearTimeout(state.timer); state.timer=null; } }
   function currentItem(){ return state.order[state.index]||null; }
+  let showToken=0;
+  // Démarre le minuteur d'avance SEULEMENT quand l'image est réellement affichée,
+  // pour que le délai réglé corresponde au temps d'affichage réel (grandes photos incluses).
+  function armAdvance(token){
+    if(state.paused) return;
+    const start=()=>{ if(state.paused || token!==showToken) return; clearTimer(); state.timer=setTimeout(next, state.delay); };
+    if(photo.complete && photo.naturalWidth>0){ start(); }
+    else {
+      photo.onload=()=>{ if(token!==showToken) return; photo.onload=photo.onerror=null; start(); };
+      photo.onerror=()=>{ if(token!==showToken) return; photo.onload=photo.onerror=null; start(); };
+    }
+  }
   function show(){
     if(state.view!=='slideshow') return;   // l'accueil (écran Coller) n'affiche jamais d'image
     clearTimer(); hideScorePop();
     if(!state.order.length){ photo.classList.add('hidden'); empty.classList.remove('hidden'); hud.classList.add('hidden'); updateRank(null); updateRankCount(); return; }
     empty.classList.add('hidden'); photo.classList.remove('hidden');
-    const it=currentItem(); photo.src=it.url;
+    const it=currentItem(); const myToken=++showToken; photo.src=it.url;
     updateTitleHud(); updateRank(titleOf(it)); updateRankCount();
-    if(!state.paused) state.timer=setTimeout(next, state.delay);
+    armAdvance(myToken);
   }
   function next(){ if(!state.order.length) return; clearTimer();
     const ni=(state.index+1)%state.order.length;
@@ -1224,6 +1264,7 @@
   // Mise en arrière-plan réelle : mémorise l'heure, masque l'aperçu, relâche le wake lock.
   function onHiddenReal(){
     if(state.key===null) return;
+    if(state.ioBusy){ coverEl.classList.add('show'); return; } // export/import : masquer sans verrouiller
     state.lastActive=Date.now();
     coverEl.classList.add('show');
     releaseWake();
@@ -1232,6 +1273,7 @@
   function onVisibleReal(){
     if(state.key===null) return;               // déjà verrouillé (ou démarrage à froid)
     coverEl.classList.remove('show');
+    if(state.ioBusy) return;                    // retour après partage/sélecteur de fichier → ne rien faire
     if(!state.lastActive) return;              // pas de vraie mise en arrière-plan → ne rien faire
     const elapsed=Date.now()-state.lastActive;
     state.lastActive=0;                         // consommé

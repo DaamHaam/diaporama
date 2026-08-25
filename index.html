@@ -637,29 +637,40 @@
       const vault=await idbGet('meta','vault'); if(!vault){ showToast('Aucun coffre'); return; }
       const st=await idbGet('meta','state');
       const photos=await idbGetAll('photos');
-      const payload={
-        format:EXPORT_FORMAT, version:1, exportedAt:Date.now(),
+      // Format binaire v2 : petit manifeste (ivs/metas en base64) + octets bruts des images concaténés.
+      // On évite ainsi une chaîne base64 géante en mémoire (crash iOS avec beaucoup de photos).
+      const bytesLen=x=> (x && x.byteLength!==undefined) ? x.byteLength : (x?x.length:0);
+      const manifest={
+        format:EXPORT_FORMAT, version:2, exportedAt:Date.now(),
         vault:{ salt:abToB64(vault.salt), iters:vault.iters, verIv:abToB64(vault.verIv), verCt:abToB64(vault.verCt) },
         state: st ? { iv:abToB64(st.iv), ct:abToB64(st.ct) } : null,
-        photos: photos.map(p=>({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCt:abToB64(p.dataCt) }))
+        photos: photos.map(p=>({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCtLen:bytesLen(p.dataCt) }))
       };
-      const blob=new Blob([JSON.stringify(payload)], {type:'application/octet-stream'});
+      const manifestBytes=enc.encode(JSON.stringify(manifest));
+      const header=new Uint8Array(10); header.set(enc.encode('DIAPO1'),0);
+      new DataView(header.buffer).setUint32(6, manifestBytes.length, false); // big-endian
+      const parts=[header, manifestBytes];
+      for(const p of photos){ parts.push(p.dataCt); }   // octets bruts (ArrayBuffer), pas de base64
+      const blob=new Blob(parts, {type:'application/octet-stream'});
       const d=new Date(); const p2=n=>('0'+n).slice(-2);
       const stamp=d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes());
       const fname='diaporama-coffre-'+stamp+'.diapo';
       // iOS : feuille de partage (« Enregistrer dans Fichiers »). Évite que Safari quitte l'app en ouvrant le blob.
+      let shared=false;
       try{
         const file=new File([blob], fname, {type:'application/octet-stream'});
-        if(navigator.canShare && navigator.canShare({files:[file]})){
+        if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
           await navigator.share({files:[file], title:'Coffre diaporama'});
-          showToast(photos.length+' photo(s) exportée(s)'); return;
+          shared=true;
         }
-      }catch(err){ if(err && err.name==='AbortError') return; /* partage annulé : on n'affiche pas d'erreur */ }
-      // Bureau : téléchargement classique
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a'); a.href=url; a.download=fname; a.rel='noopener';
-      document.body.appendChild(a); a.click();
-      setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 2000);
+      }catch(err){ if(err && err.name==='AbortError'){ shared=true; } /* annulé : ne pas re-télécharger */ }
+      if(!shared){
+        // Bureau : téléchargement classique
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement('a'); a.href=url; a.download=fname; a.rel='noopener';
+        document.body.appendChild(a); a.click();
+        setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 2000);
+      }
       showToast(photos.length+' photo(s) exportée(s)');
     }catch(e){ showToast('Erreur à l\'export'); }
     finally{ ioGuard(false); }
@@ -680,8 +691,17 @@
   }
   async function doImport(f){
       if(!f){ return; }
-      let payload;
-      try{ payload=JSON.parse(await f.text()); }catch(e){ showToast('Fichier illisible'); return; }
+      const buf=await f.arrayBuffer(); const u8=new Uint8Array(buf);
+      let payload=null, dataBuf=null, dataOff=0;   // dataBuf!=null => format binaire v2
+      if(u8.length>=10 && dec.decode(u8.subarray(0,6))==='DIAPO1'){
+        try{
+          const mlen=new DataView(buf).getUint32(6, false);
+          payload=JSON.parse(dec.decode(u8.subarray(10, 10+mlen)));
+          dataBuf=buf; dataOff=10+mlen;
+        }catch(e){ showToast('Fichier illisible'); return; }
+      } else {
+        try{ payload=JSON.parse(dec.decode(u8)); }catch(e){ showToast('Fichier illisible'); return; }
+      }
       if(!payload || payload.format!==EXPORT_FORMAT || !payload.vault){ showToast('Fichier non reconnu'); return; }
       const pin=prompt('Code de chiffrement du fichier :'); if(pin===null) return;
       let impKey;
@@ -697,17 +717,21 @@
       // Photos : fusion, dédoublonnage par id, re-chiffrées avec la clé LOCALE
       const existing=new Set(state.items.map(x=>x.id)); let added=0;
       for(const p of (payload.photos||[])){
+        // Octets chiffrés de l'image : depuis la section binaire (v2) ou base64 (v1)
+        let dataCt;
+        if(dataBuf){ dataCt=dataBuf.slice(dataOff, dataOff+p.dataCtLen); dataOff+=p.dataCtLen; }
+        else { dataCt=b64ToU8(p.dataCt); }
         if(existing.has(p.id)) continue;
         try{
-          const buf=await decBuf(impKey, b64ToU8(p.dataIv), b64ToU8(p.dataCt));
+          const bytes=await decBuf(impKey, b64ToU8(p.dataIv), dataCt);
           const m=await decJSON(impKey, b64ToU8(p.metaIv), b64ToU8(p.metaCt));
-          const blob=new Blob([buf], {type:m.type||'image/png'});
+          const blob=new Blob([bytes], {type:m.type||'image/png'});
           const it={id:p.id, title:m.title||'', url:URL.createObjectURL(blob), type:m.type||'image/png', createdAt:m.createdAt||Date.now()};
           state.items.push(it); await savePhotoWithKey(state.key, it, blob);
           existing.add(p.id); added++;
         }catch(e){}
       }
-      // Points : on ADDITIONNE. Classement # : on garde l'ordre du Mac, on ajoute les titres nouveaux.
+      // Points : on ADDITIONNE. Rang # : on garde l'ordre du Mac, on ajoute les titres nouveaux.
       if(impState.scores && typeof impState.scores==='object'){
         for(const t in impState.scores){ state.scores[t]=(state.scores[t]||0)+(+impState.scores[t]||0); }
       }

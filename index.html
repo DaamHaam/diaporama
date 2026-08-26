@@ -42,6 +42,19 @@
   #hud{position:absolute; top:calc(env(safe-area-inset-top) + 12px); left:14px; z-index:20;
     color:#fff; font-size:13px; background:rgba(0,0,0,.35); padding:5px 10px; border-radius:10px;
     max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:opacity .3s;}
+  /* ---- Liste des rangs (touche R) ---- */
+  #rankList{position:absolute; top:calc(env(safe-area-inset-top) + 48px); left:14px; z-index:24;
+    background:rgba(0,0,0,.62); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:6px; max-width:70%; max-height:70%;
+    overflow-y:auto; display:none;}
+  #rankList.show{display:block;}
+  #rankList .rl-row{display:flex; align-items:center; gap:9px; padding:5px 8px; border-radius:8px;
+    color:#fff; font-size:14px; white-space:nowrap;}
+  #rankList .rl-row .rl-n{min-width:20px; text-align:center; font-weight:800; color:var(--gold);
+    background:rgba(255,255,255,.08); border-radius:6px; padding:1px 4px; font-size:13px;}
+  #rankList .rl-row.cur{background:rgba(255,255,255,.16);}
+  #rankList .rl-row.off{opacity:.4;}
+  #rankList .rl-row.off .rl-n{color:var(--muted);}
   #pausePill{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:20;
     font-size:60px; opacity:0; transition:opacity .25s; pointer-events:none; text-shadow:0 3px 10px rgba(0,0,0,.7);}
   #pausePill.show{opacity:.9;}
@@ -261,6 +274,7 @@
 
 <div id="hud" class="hidden"></div>
 <div id="rank"></div>
+<div id="rankList"></div>
 <div id="pausePill">⏸</div>
 <div id="likeHeart">❤️</div>
 
@@ -515,7 +529,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.09';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.10';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -537,7 +551,6 @@
     groupOrder: [],       // ordre du rang manuel des titres (indépendant des scores)
     scores: {},           // {titre: points} — persistant dans le coffre
     likes: new Map(),     // id → nombre de cœurs (1-3) — session uniquement (effacé au rechargement)
-    boostPhase: 0,        // 0=aucun like, 1=cycle neutre en cours avant boost, 2=boost actif
     fairCycle: false,     // la playlist courante a-t-elle été construite en mode équitable ?
     timer: null,
     immersive: false,
@@ -943,38 +956,42 @@
       state.activeFilters=new Set([...state.activeFilters].filter(t=>titles.includes(t)));
       if(state.activeFilters.size===0) state.activeFilters=null;
     }
+    // Plafond : au-delà de MAX_CATS catégories, « tous » (null) devient explicitement les 7 premiers par rang.
+    if(state.activeFilters===null && titles.length>MAX_CATS){
+      const ordered=state.groupOrder.filter(t=>titles.includes(t));
+      state.activeFilters=new Set(ordered.slice(0,MAX_CATS));
+    }
   }
   function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
   // ================= Playlist =================
-  // Clés (catégories) réellement diffusées, en tenant compte des filtres.
-  function fairKeys(g){
-    const keys=Object.keys(g);
-    if(state.activeFilters===null) return keys;
-    return keys.filter(k=>state.activeFilters.has(k));
+  const MAX_CATS=7;   // plafond de catégories réellement diffusées dans un diaporama
+  // Catégories réellement jouées : filtres appliqués, dans l'ordre des rangs, plafonnées à MAX_CATS.
+  function playedTitles(){
+    const present=new Set(allTitles());
+    const ordered=state.groupOrder.filter(t=>present.has(t));         // ordre des rangs
+    const sel = state.activeFilters===null ? ordered : ordered.filter(t=>state.activeFilters.has(t));
+    return sel.slice(0, MAX_CATS);                                    // au plus 7 (les premiers par rang)
   }
   function buildPlaylist(){
-    const g=groups(); const keys=Object.keys(g); let list; state.fairCycle=false;
-    const fk = state.fairMode ? fairKeys(g) : [];
-    if(state.fairMode && fk.length){
-      // Mode équitable : on s'aligne sur la plus petite catégorie SÉLECTIONNÉE.
-      // Les catégories désélectionnées sortent du calcul du minimum.
-      const minCount=Math.min(...fk.map(k=>g[k].length));
+    const g=groups(); const pt=playedTitles(); let list; state.fairCycle=false;
+    if(state.fairMode && pt.length){
+      // Mode équitable : on s'aligne sur la plus petite catégorie jouée.
+      const minCount=Math.min(...pt.map(k=>g[k].length));
       const cycle=[];
-      for(const k of fk){ cycle.push(...shuffle(g[k].slice()).slice(0,minCount)); }
-      // Boost des favoris : une fois le cycle neutre passé, chaque photo likée
-      // (dans une catégorie affichée) est ajoutée une fois de plus. Petit déséquilibre voulu.
-      if(state.boostPhase===2 && state.likes.size){
-        for(const k of fk){ for(const it of g[k]){ if(state.likes.has(it.id)) cycle.push(it); } }
+      for(const k of pt){ cycle.push(...shuffle(g[k].slice()).slice(0,minCount)); }
+      // Boost des favoris : chaque photo likée est ajoutée AUTANT DE FOIS que son nombre de cœurs
+      // (1 à 3), en plus du tirage neutre. La catégorie likée a donc plus de photos.
+      if(state.likes.size){
+        for(const k of pt){ for(const it of g[k]){ const c=state.likes.get(it.id)||0; for(let i=0;i<c;i++) cycle.push(it); } }
       }
       list=shuffle(cycle); state.fairCycle=true;
-    } else if(state.seriesMode && state.activeFilters===null && keys.length){
+    } else if(state.seriesMode && pt.length){
       list=[];
-      for(const k of keys){ let grp=g[k].slice(); if(state.random) shuffle(grp); list.push(...grp.slice(0,state.seriesSize)); }
+      for(const k of pt){ let grp=g[k].slice(); if(state.random) shuffle(grp); list.push(...grp.slice(0,state.seriesSize)); }
     } else {
-      let base;
-      if(state.activeFilters===null) base=state.items.slice();
-      else { base=[]; for(const t of state.activeFilters) if(g[t]) base.push(...g[t]); }
+      let base=[];
+      for(const t of pt){ if(g[t]) base.push(...g[t]); }
       if(state.random) shuffle(base); else base.sort((a,b)=>titleOf(a).localeCompare(titleOf(b)));
       list=base;
     }
@@ -1003,15 +1020,13 @@
     empty.classList.add('hidden'); photo.classList.remove('hidden');
     const it=currentItem(); const myToken=++showToken; photo.src=it.url;
     updateTitleHud(); updateRank(titleOf(it)); updateRankCount();
+    if($('#rankList').classList.contains('show')) renderRankList();
     armAdvance(myToken);
   }
   function next(){ if(!state.order.length) return; clearTimer();
     const ni=(state.index+1)%state.order.length;
     if(state.fairCycle && ni===0){
-      // Fin d'un cycle équitable : on reconstruit (nouveau tirage aléatoire).
-      const wasPhase=state.boostPhase;
-      buildPlaylist();                       // construit le cycle suivant avec la phase courante
-      if(wasPhase===1) state.boostPhase=2;   // le cycle neutre obligatoire vient de s'écouler → boost ensuite
+      buildPlaylist();   // Fin d'un cycle équitable : nouveau tirage (le boost des likes est déjà pris en compte)
     } else state.index=ni;
     show(); }
   function prev(){ if(!state.order.length) return; clearTimer();
@@ -1041,6 +1056,7 @@
   function goHome(){
     state.view='home'; clearTimer(); releaseWake();
     document.body.classList.remove('immersive'); state.immersive=false;
+    $('#rankList').classList.remove('show');
     photo.classList.add('hidden');
     homeEl.classList.add('show');
     showHome();
@@ -1070,17 +1086,24 @@
     try{ await idbDel('photos', id); await saveState(); }catch(e){}
     afterDataChange();
   }
-  async function deleteCurrent(){
+  // Suppression effective (sans confirmation ni réapparition des menus).
+  async function doDeleteCurrent(){
+    if(state.view!=='slideshow') return;
     const it=currentItem(); if(!it) return;
-    const t=titleOf(it);
-    if(!confirm('Supprimer définitivement cette image'+(t?(' de « '+t+' »'):'')+' ?\nCette action est irréversible.')) return;
     clearTimer();                       // évite qu'un minuteur en attente n'affiche une image supprimée
     const keep=state.index;
     try{ URL.revokeObjectURL(it.url); }catch(e){}
     state.items=state.items.filter(x=>x.id!==it.id);
     try{ await idbDel('photos', it.id); await saveState(); }catch(e){}
     syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount();
+    if($('#rankList').classList.contains('show')) renderRankList();
     state.index=state.order.length?Math.min(keep, state.order.length-1):0; show();
+  }
+  async function deleteCurrent(){   // version avec confirmation (touche Suppr, bouton 🗑)
+    const it=currentItem(); if(!it) return;
+    const t=titleOf(it);
+    if(!confirm('Supprimer définitivement cette image'+(t?(' de « '+t+' »'):'')+' ?\nCette action est irréversible.')) return;
+    await doDeleteCurrent();
   }
   async function renameGroup(oldTitle){
     const nv=prompt('Nouveau titre pour le groupe « '+oldTitle+' » :', oldTitle);
@@ -1116,6 +1139,60 @@
     showToast('Rangs re-tirés au hasard');
   }
   function updateRankCount(){ const it=currentItem(); const r=it?rankMap()[titleOf(it)]:null; $('#rankBtn .cnt').textContent=r?r:''; }
+  // Touche M : monte d'un cran la catégorie de la photo courante (celle du dessus descend d'un cran).
+  function promoteCurrentRank(){
+    if(state.view!=='slideshow') return;
+    const it=currentItem(); const t=it&&titleOf(it); if(!t){ showToast('Cette image n\'a pas de titre'); return; }
+    const idx=state.groupOrder.indexOf(t);
+    if(idx<=0){ showToast('« '+t+' » est déjà au rang 1'); return; }
+    [state.groupOrder[idx-1], state.groupOrder[idx]]=[state.groupOrder[idx], state.groupOrder[idx-1]];
+    updateRank(t); updateRankCount(); if($('#rankList').classList.contains('show')) renderRankList();
+    buildPlaylist(); saveState();
+    showToast('« '+t+' » — rang '+(rankMap()[t]));
+  }
+  // Touche X : retire la catégorie courante du diaporama (photos conservées) et la descend en bas des
+  // rangs (les autres montent d'un cran). Réactivable via les cases « Groupes à afficher » des réglages.
+  function disableCurrentCategory(){
+    if(state.view!=='slideshow') return;
+    const it=currentItem(); const t=it&&titleOf(it); if(!t){ showToast('Cette image n\'a pas de titre'); return; }
+    if(!confirm('Retirer la catégorie « '+t+' » du diaporama ?\nLes photos sont conservées ; réactivable dans les réglages.')) return;
+    const all=allTitles();
+    let sel = state.activeFilters===null ? new Set(all) : new Set(state.activeFilters);
+    sel.delete(t);
+    state.activeFilters = (sel.size===0) ? new Set() : sel;   // sous-ensemble strict (t retiré) → jamais « null »
+    state.groupOrder=state.groupOrder.filter(x=>x!==t); state.groupOrder.push(t);   // en bas des rangs
+    const keep=state.index;
+    buildPlaylist(); renderFilters(); updateRankCount(); if($('#rankList').classList.contains('show')) renderRankList(); saveState();
+    state.index=state.order.length?Math.min(keep, state.order.length-1):0; show();
+    showToast('« '+t+' » retirée du diaporama');
+  }
+  // Touche H : re-tire au hasard l'ordre d'apparition (relance une série), sans toucher aux rangs.
+  function shufflePlaylist(){
+    if(state.view!=='slideshow') return;
+    buildPlaylist(); show();   // nouveau tirage (boost des likes inclus)
+    showToast('Ordre re-tiré au hasard');
+  }
+  // Touche R : panneau à gauche listant toutes les catégories numérotées + leur rang.
+  function renderRankList(){
+    const el=$('#rankList'); el.innerHTML='';
+    const present=new Set(allTitles());
+    const ordered=state.groupOrder.filter(t=>present.has(t));
+    if(!ordered.length){ el.innerHTML='<div class="rl-row off">Aucune catégorie</div>'; return; }
+    const played=new Set(playedTitles());
+    const curT=titleOf(currentItem()||{});
+    ordered.forEach((t,i)=>{
+      const row=document.createElement('div');
+      row.className='rl-row'+(t===curT?' cur':'')+(played.has(t)?'':' off');
+      row.innerHTML='<span class="rl-n">'+(i+1)+'</span><span class="rl-t">'+escapeHtml(t)+'</span>';
+      el.appendChild(row);
+    });
+  }
+  function toggleRankList(){
+    if(state.view!=='slideshow') return;
+    const el=$('#rankList');
+    if(el.classList.contains('show')){ el.classList.remove('show'); return; }
+    renderRankList(); el.classList.add('show');
+  }
 
   // ================= Favoris (likes) =================
   // Les likes vivent en mémoire uniquement : ils sont effacés au rechargement de l'app.
@@ -1130,7 +1207,6 @@
     const max=state.multiLike?3:1;
     if(cur>=max) return;                          // déjà au plafond → aucun cœur ni point ajouté
     state.likes.set(it.id, cur+1);
-    if(state.boostPhase===0) state.boostPhase=1;  // 1er like → un cycle neutre complet, puis boost
     if(state.likeScores){ const t=titleOf(it); if(t) addPointsTo(t, 1); } // option : un cœur = +1 au classement
     showHeart(); updateTitleHud();
   }
@@ -1298,11 +1374,20 @@
   function toggleFilter(title){
     const all=allTitles(); let sel;
     if(state.activeFilters===null) sel=new Set(all); else sel=new Set(state.activeFilters);
-    if(sel.has(title)) sel.delete(title); else sel.add(title);
-    if(sel.size===0) state.activeFilters=new Set(); else if(sel.size===all.length) state.activeFilters=null; else state.activeFilters=sel;
+    if(sel.has(title)) sel.delete(title);
+    else { if(sel.size>=MAX_CATS){ showToast('Maximum '+MAX_CATS+' catégories'); return; } sel.add(title); }
+    if(sel.size===0) state.activeFilters=new Set();
+    else if(sel.size===all.length && all.length<=MAX_CATS) state.activeFilters=null;
+    else state.activeFilters=sel;
     buildPlaylist(); renderFilters(); show();
   }
-  $('#filterAll').addEventListener('click', ()=>{ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); });
+  // « Tous les groupes » : si ≤7 catégories → tous ; sinon → les 7 premiers par rang.
+  function selectAllGroups(){
+    const ordered=state.groupOrder.filter(t=>allTitles().includes(t));
+    state.activeFilters = ordered.length<=MAX_CATS ? null : new Set(ordered.slice(0,MAX_CATS));
+    buildPlaylist(); renderFilters(); show();
+  }
+  $('#filterAll').addEventListener('click', selectAllGroups);
 
   function renderLib(){
     const grid=$('#libGrid'); grid.innerHTML='';
@@ -1424,6 +1509,8 @@
       return;
     }
     if(state.key===null) return;
+    // Raccourcis du diaporama désactivés si un panneau/modale est ouvert (évite suppressions accidentelles).
+    const overlayOpen = panel.classList.contains('open') || scoreEditModal.classList.contains('open') || rankModal.classList.contains('open') || exportModal.classList.contains('open');
     const k=e.key;
     if(k===' '){ e.preventDefault(); if(state.order.length) togglePause(); }
     else if(k==='ArrowRight') next();
@@ -1431,9 +1518,14 @@
     else if(k==='ArrowDown'){ e.preventDefault(); setImmersive(false); pauseIfPlaying(); }  // Mac : ramener les menus + pause (comme balayage ↑)
     else if(k==='ArrowUp'){ state.showRank=!state.showRank; $('#setRank').checked=state.showRank; updateRank(titleOf(currentItem()||{})); saveState(); }
     else if(k==='Delete'||k==='Backspace') deleteCurrent();
-    else if(k==='0'){ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); }
+    else if(k==='0'){ selectAllGroups(); }
     else if(/^[1-9]$/.test(k)) assignRank(+k);
     else if(k==='f'||k==='F') setImmersive(!state.immersive);
+    else if(!overlayOpen && (k==='s'||k==='S')) doDeleteCurrent();          // suppression immédiate (sans confirmation)
+    else if(!overlayOpen && (k==='h'||k==='H')) shufflePlaylist();          // re-tirage de l'ordre
+    else if(!overlayOpen && (k==='x'||k==='X')) disableCurrentCategory();   // désactiver la catégorie (confirm Entrée)
+    else if(!overlayOpen && (k==='r'||k==='R')) toggleRankList();           // liste des rangs à gauche
+    else if(!overlayOpen && (k==='m'||k==='M')) promoteCurrentRank();       // monter d'un rang
   });
   document.addEventListener('dblclick', e=>e.preventDefault(), {passive:false});
 

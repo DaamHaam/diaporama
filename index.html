@@ -529,7 +529,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.11';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.12';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -578,11 +578,24 @@
         if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta',{keyPath:'k'});
         if(!d.objectStoreNames.contains('photos')) d.createObjectStore('photos',{keyPath:'id'});
       };
-      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+      r.onsuccess=()=>{ const d=r.result;
+        // La connexion peut se fermer (mise en veille de l'onglet / arrière-plan iOS, versionchange d'un
+        // autre onglet…). On oublie alors le cache pour rouvrir une connexion fraîche au prochain accès.
+        d.onclose=()=>{ dbp=null; };
+        d.onversionchange=()=>{ try{ d.close(); }catch(e){} dbp=null; };
+        res(d);
+      };
+      r.onerror=()=>{ dbp=null; rej(r.error); };
     });
     return dbp;
   }
-  function tx(store, mode){ return db().then(d=>d.transaction(store,mode).objectStore(store)); }
+  // Ouvre une transaction ; si la connexion en cache est en train de se fermer, on en rouvre une et on réessaie.
+  function tx(store, mode){
+    return db().then(d=>{
+      try{ return d.transaction(store,mode).objectStore(store); }
+      catch(e){ dbp=null; return db().then(d2=>d2.transaction(store,mode).objectStore(store)); }
+    });
+  }
   function idbGet(store,key){ return tx(store,'readonly').then(s=>new Promise((res,rej)=>{const r=s.get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);})); }
   function idbGetAll(store){ return tx(store,'readonly').then(s=>new Promise((res,rej)=>{const r=s.getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error);})); }
   function idbPut(store,val){ return tx(store,'readwrite').then(s=>new Promise((res,rej)=>{const r=s.put(val); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error);})); }
@@ -1077,9 +1090,11 @@
     const it={id:crypto.randomUUID(), title:(title||'').trim(), url, type:blob.type||'image/png', createdAt:Date.now()};
     state.items.push(it);
     state.lastTitle=it.title || state.lastTitle;
-    try{ await savePhoto(it, blob); await saveState(); }catch(e){ showToast('Erreur de chiffrement'); }
+    let saved=true;
+    try{ await savePhoto(it, blob); await saveState(); }catch(e){ saved=false; }
     afterDataChange();
-    showToast(it.title ? ('Ajouté · '+it.title) : 'Ajouté (sans titre)');
+    if(saved) showToast(it.title ? ('Ajouté · '+it.title) : 'Ajouté (sans titre)');
+    else showToast('⚠️ « '+(it.title||'sans titre')+' » NON enregistrée — recharge l\'app et réessaie');
   }
   async function removeItem(id){
     const i=state.items.findIndex(x=>x.id===id); if(i<0) return;

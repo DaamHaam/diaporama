@@ -529,7 +529,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.10';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.11';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -948,6 +948,8 @@
   }
   function allTitles(){ return Object.keys(groups()); }
   function rankMap(){ const m={}; state.groupOrder.forEach((t,i)=>m[t]=i+1); return m; }
+  // Rang « affiché » = position 1..N parmi les catégories RÉELLEMENT jouées (les non jouées n'ont pas de rang).
+  function playedRankMap(){ const m={}; playedTitles().forEach((t,i)=>m[t]=i+1); return m; }
   function syncGroups(){
     const titles=allTitles();
     state.groupOrder=state.groupOrder.filter(t=>titles.includes(t));
@@ -1031,7 +1033,7 @@
     show(); }
   function prev(){ if(!state.order.length) return; clearTimer();
     state.index=(state.index-1+state.order.length)%state.order.length; show(); }
-  function updateRank(title){ if(!state.showRank){ rankEl.textContent=''; return; } const r=rankMap()[title]; rankEl.textContent=r?String(r):''; }
+  function updateRank(title){ if(!state.showRank){ rankEl.textContent=''; return; } const r=playedRankMap()[title]; rankEl.textContent=r?String(r):''; }
   // Titre de catégorie (+ ❤️ si likée) en haut à gauche — reste visible même en immersif.
   function updateTitleHud(){
     const it=currentItem();
@@ -1121,10 +1123,16 @@
   function assignRank(pos){
     const it=currentItem(); const t=it&&titleOf(it);
     if(!t){ showToast('Cette image n\'a pas de titre'); return; }
-    const go=state.groupOrder.filter(x=>x!==t);
-    const idx=Math.min(Math.max(pos-1,0), go.length); go.splice(idx,0,t);
-    for(const x of allTitles()) if(!go.includes(x)) go.push(x);
-    state.groupOrder=go; updateRank(t); updateRankCount(); saveState();
+    const played=playedTitles();
+    if(!played.includes(t)){ showToast('« '+t+' » n\'est pas affichée'); return; }
+    const others=played.filter(x=>x!==t);
+    const idx=Math.min(Math.max(pos-1,0), others.length); others.splice(idx,0,t);   // nouvel ordre des catégories jouées
+    // groupOrder = catégories jouées (nouvel ordre) puis les non jouées (ordre conservé).
+    const playedSet=new Set(others);
+    const rest=state.groupOrder.filter(x=>allTitles().includes(x) && !playedSet.has(x));
+    state.groupOrder=[...others, ...rest];
+    for(const x of allTitles()) if(!state.groupOrder.includes(x)) state.groupOrder.push(x);
+    updateRank(t); updateRankCount(); if($('#rankList').classList.contains('show')) renderRankList(); saveState();
     showToast('« '+t+' » — rang '+(idx+1));
   }
   function clearRank(){ const it=currentItem(); const t=it&&titleOf(it); if(!t) return;
@@ -1138,17 +1146,21 @@
     const it=currentItem(); updateRank(it?titleOf(it):''); updateRankCount(); saveState();
     showToast('Rangs re-tirés au hasard');
   }
-  function updateRankCount(){ const it=currentItem(); const r=it?rankMap()[titleOf(it)]:null; $('#rankBtn .cnt').textContent=r?r:''; }
+  function updateRankCount(){ const it=currentItem(); const r=it?playedRankMap()[titleOf(it)]:null; $('#rankBtn .cnt').textContent=r?r:''; }
   // Touche M : monte d'un cran la catégorie de la photo courante (celle du dessus descend d'un cran).
   function promoteCurrentRank(){
     if(state.view!=='slideshow') return;
     const it=currentItem(); const t=it&&titleOf(it); if(!t){ showToast('Cette image n\'a pas de titre'); return; }
-    const idx=state.groupOrder.indexOf(t);
-    if(idx<=0){ showToast('« '+t+' » est déjà au rang 1'); return; }
-    [state.groupOrder[idx-1], state.groupOrder[idx]]=[state.groupOrder[idx], state.groupOrder[idx-1]];
+    const played=playedTitles(); const pi=played.indexOf(t);
+    if(pi<0){ showToast('« '+t+' » n\'est pas affichée'); return; }
+    if(pi===0){ showToast('« '+t+' » est déjà au rang 1'); return; }
+    // Échange t avec la catégorie jouée juste au-dessus (dans groupOrder), en ignorant les non jouées.
+    const prev=played[pi-1];
+    const gi=state.groupOrder.indexOf(t), gj=state.groupOrder.indexOf(prev);
+    [state.groupOrder[gi], state.groupOrder[gj]]=[state.groupOrder[gj], state.groupOrder[gi]];
     updateRank(t); updateRankCount(); if($('#rankList').classList.contains('show')) renderRankList();
     buildPlaylist(); saveState();
-    showToast('« '+t+' » — rang '+(rankMap()[t]));
+    showToast('« '+t+' » — rang '+pi);
   }
   // Touche X : retire la catégorie courante du diaporama (photos conservées) et la descend en bas des
   // rangs (les autres montent d'un cran). Réactivable via les cases « Groupes à afficher » des réglages.
@@ -1175,14 +1187,12 @@
   // Touche R : panneau à gauche listant toutes les catégories numérotées + leur rang.
   function renderRankList(){
     const el=$('#rankList'); el.innerHTML='';
-    const present=new Set(allTitles());
-    const ordered=state.groupOrder.filter(t=>present.has(t));
-    if(!ordered.length){ el.innerHTML='<div class="rl-row off">Aucune catégorie</div>'; return; }
-    const played=new Set(playedTitles());
+    const played=playedTitles();   // seulement les catégories jouées, dans l'ordre des rangs (1..N)
+    if(!played.length){ el.innerHTML='<div class="rl-row off">Aucune catégorie</div>'; return; }
     const curT=titleOf(currentItem()||{});
-    ordered.forEach((t,i)=>{
+    played.forEach((t,i)=>{
       const row=document.createElement('div');
-      row.className='rl-row'+(t===curT?' cur':'')+(played.has(t)?'':' off');
+      row.className='rl-row'+(t===curT?' cur':'');
       row.innerHTML='<span class="rl-n">'+(i+1)+'</span><span class="rl-t">'+escapeHtml(t)+'</span>';
       el.appendChild(row);
     });
@@ -1415,8 +1425,9 @@
   function openRankPicker(){
     const it=currentItem(); const t=it&&titleOf(it); if(!t){ showToast('Cette image n\'a pas de titre'); return; }
     $('#rankTitle').textContent='Rang de « '+t+' »';
-    const grid=$('#rankGrid'); grid.innerHTML=''; const cur=rankMap()[t];
-    for(let i=1;i<=9;i++){ const b=document.createElement('button'); b.textContent=i; if(i===cur) b.classList.add('cur');
+    const grid=$('#rankGrid'); grid.innerHTML='';
+    const played=playedTitles(); const n=Math.max(played.length,1); const cur=played.indexOf(t)+1;   // 1..N (0 si non jouée)
+    for(let i=1;i<=n;i++){ const b=document.createElement('button'); b.textContent=i; if(i===cur) b.classList.add('cur');
       b.addEventListener('click',()=>{ assignRank(i); rankModal.classList.remove('open'); }); grid.appendChild(b); }
     rankModal.classList.add('open');
   }

@@ -529,7 +529,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.12';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.13';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -648,9 +648,9 @@
     const salt=crypto.getRandomValues(new Uint8Array(16));
     const newKey=await deriveKey(newPin, salt, ITERS);
     const ver=await encBuf(newKey, enc.encode(VTOKEN));
-    // re-chiffrer chaque photo (les données sont déjà en clair en mémoire)
+    // re-chiffrer chaque photo, une à la fois (déchiffrée depuis IndexedDB avec l'ancienne clé)
     for(const it of state.items){
-      const resp=await fetch(it.url); const blob=await resp.blob();
+      const blob=await photoBlob(it);
       await savePhotoWithKey(newKey, it, blob);
     }
     state.key=newKey;
@@ -686,18 +686,136 @@
       state.multiLike=!!o.multiLike; state.likeScores=!!o.likeScores;
       state.scores=(o.scores && typeof o.scores==='object')?o.scores:{};
     }catch(e){} }
-    // Photos
+    // Photos : on ne déchiffre QUE les métadonnées (titre, type, date), par lots au curseur.
+    // Les images restent chiffrées dans IndexedDB et sont déchiffrées à la demande (ensureUrl).
+    // Avant v0.13, tout le coffre était chargé + déchiffré ici → au-delà de quelques centaines de Mo,
+    // iOS tuait l'onglet (« Un problème récurrent est survenu »).
+    resetImageCaches();
     state.items=[];
-    const recs=await idbGetAll('photos');
-    for(const r of recs){
-      try{
-        const m=await decJSON(state.key, r.metaIv, r.metaCt);
-        const buf=await decBuf(state.key, r.dataIv, r.dataCt);
-        const blob=new Blob([buf], {type:m.type||'image/png'});
-        const url=URL.createObjectURL(blob);
-        state.items.push({id:r.id, title:m.title||'', url, type:m.type, createdAt:m.createdAt});
-      }catch(e){}
+    let after=null;
+    for(;;){
+      const batch=await readMetaBatch(after, 50);
+      for(const r of batch){
+        try{
+          const m=await decJSON(state.key, r.metaIv, r.metaCt);
+          state.items.push({id:r.id, title:m.title||'', url:null, type:m.type, createdAt:m.createdAt});
+        }catch(e){}
+      }
+      if(batch.length<50) break;
+      after=batch[batch.length-1].id;
     }
+  }
+  // Lit au plus n enregistrements après la clé `after`, en ne gardant que les champs de métadonnées
+  // (les octets de l'image, lus par le curseur, sont abandonnés aussitôt → libérables).
+  function readMetaBatch(after, n){
+    return tx('photos','readonly').then(s=>new Promise((res,rej)=>{
+      const out=[];
+      const req=s.openCursor(after===null?null:IDBKeyRange.lowerBound(after, true));
+      req.onsuccess=()=>{ const c=req.result;
+        if(!c || out.length>=n){ res(out); return; }
+        const v=c.value; out.push({id:v.id, metaIv:v.metaIv, metaCt:v.metaCt});
+        c.continue();
+      };
+      req.onerror=()=>rej(req.error);
+    }));
+  }
+
+  // ================= Images à la demande =================
+  // Seules quelques images déchiffrées vivent en mémoire (it.url) : la courante, les voisines préchargées
+  // et quelques récentes. Les plus anciennes sont libérées (revoke) au-delà de URL_CACHE_MAX.
+  const URL_CACHE_MAX=8, THUMB_PX=240;
+  let urlLru=[];              // items ayant it.url, du plus ancien au plus récent
+  let vaultGen=0;             // incrémenté au verrouillage/rechargement : invalide les déchiffrements en vol
+  const thumbUrls=new Map();  // id → object URL d'une vignette JPEG réduite (quelques dizaines de Ko)
+  async function photoBlob(it){
+    const r=await idbGet('photos', it.id); if(!r) throw new Error('photo absente');
+    const buf=await decBuf(state.key, r.dataIv, r.dataCt);
+    return new Blob([buf], {type:it.type||'image/png'});
+  }
+  function touchUrl(it){
+    const i=urlLru.indexOf(it); if(i>=0) urlLru.splice(i,1); urlLru.push(it);
+    const cur=currentItem();
+    for(let k=0; urlLru.length>URL_CACHE_MAX && k<urlLru.length; ){
+      const old=urlLru[k];
+      if(old===cur || old===it){ k++; continue; }
+      urlLru.splice(k,1);
+      try{ URL.revokeObjectURL(old.url); }catch(e){} old.url=null;
+    }
+  }
+  function ensureUrl(it){
+    if(it.url){ touchUrl(it); return Promise.resolve(it.url); }
+    if(it._load) return it._load;
+    const gen=vaultGen;
+    it._load=photoBlob(it).then(b=>{
+      it._load=null;
+      if(gen!==vaultGen) throw new Error('verrouillé');
+      if(!it.url) it.url=URL.createObjectURL(b);
+      touchUrl(it); return it.url;
+    }, e=>{ it._load=null; throw e; });
+    return it._load;
+  }
+  // Précharge les voisines de l'image courante (suivante, celle d'après, précédente).
+  function prefetchAround(){
+    const n=state.order.length; if(n<2) return;
+    for(const d of [1,2,-1]){ const it=state.order[(state.index+d+n)%n]; if(it && !it.url) ensureUrl(it).catch(()=>{}); }
+  }
+  function dropItemImages(it){
+    const i=urlLru.indexOf(it); if(i>=0) urlLru.splice(i,1);
+    if(it.url){ try{ URL.revokeObjectURL(it.url); }catch(e){} it.url=null; }
+    const t=thumbUrls.get(it.id); if(t){ try{ URL.revokeObjectURL(t); }catch(e){} thumbUrls.delete(it.id); }
+  }
+  function resetImageCaches(){
+    vaultGen++;
+    for(const it of state.items){ if(it.url){ try{ URL.revokeObjectURL(it.url); }catch(e){} it.url=null; } }
+    for(const u of thumbUrls.values()){ try{ URL.revokeObjectURL(u); }catch(e){} }
+    urlLru=[]; thumbUrls.clear(); thumbQ=[];
+  }
+  // Vignettes : image déchiffrée puis réduite (côté court = THUMB_PX) en JPEG, une à la fois.
+  async function makeThumb(it){
+    if(thumbUrls.has(it.id)) return thumbUrls.get(it.id);
+    const gen=vaultGen;
+    const blob=await photoBlob(it);
+    let bmp=null, tmpUrl=null;
+    try{
+      let src, w, h;
+      if(window.createImageBitmap){ bmp=await createImageBitmap(blob); src=bmp; w=bmp.width; h=bmp.height; }
+      else { tmpUrl=URL.createObjectURL(blob); const im=new Image(); im.src=tmpUrl; await im.decode(); src=im; w=im.naturalWidth; h=im.naturalHeight; }
+      const s=Math.min(1, THUMB_PX/Math.max(1,Math.min(w,h)));
+      const c=document.createElement('canvas'); c.width=Math.max(1,Math.round(w*s)); c.height=Math.max(1,Math.round(h*s));
+      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      const tb=await new Promise(r=>c.toBlob(r, 'image/jpeg', 0.8));
+      c.width=c.height=0;
+      if(!tb) throw new Error('vignette');
+      if(gen!==vaultGen) throw new Error('verrouillé');
+      if(thumbUrls.has(it.id)) return thumbUrls.get(it.id);
+      const u=URL.createObjectURL(tb); thumbUrls.set(it.id, u); return u;
+    } finally { if(bmp){ try{ bmp.close(); }catch(e){} } if(tmpUrl){ try{ URL.revokeObjectURL(tmpUrl); }catch(e){} } }
+  }
+  let thumbQ=[], thumbBusy=false;
+  const thumbTargets=new WeakMap();   // élément observé → {it, img}
+  const thumbIO=('IntersectionObserver' in window) ? new IntersectionObserver(ents=>{
+    for(const e of ents){
+      if(!e.target.isConnected){ thumbIO.unobserve(e.target); continue; }
+      if(!e.isIntersecting || !panel.classList.contains('open')) continue;
+      thumbIO.unobserve(e.target);
+      const t=thumbTargets.get(e.target); if(t) queueThumb(t.it, t.img);
+    }
+  }, {rootMargin:'300px'}) : null;
+  // Charge la vignette de `it` dans `img` quand `target` devient visible (panneau ouvert).
+  function lazyThumb(it, img, target){
+    const u=thumbUrls.get(it.id); if(u){ img.src=u; return; }
+    if(thumbIO){ thumbTargets.set(target, {it, img}); thumbIO.observe(target); }
+    else queueThumb(it, img);
+  }
+  function queueThumb(it, img){ thumbQ.push({it, img}); if(!thumbBusy) pumpThumbs(); }
+  async function pumpThumbs(){
+    thumbBusy=true;
+    while(thumbQ.length){
+      const {it, img}=thumbQ.shift();
+      if(!img.isConnected || state.key===null) continue;
+      try{ const u=await makeThumb(it); if(img.isConnected) img.src=u; }catch(e){}
+    }
+    thumbBusy=false;
   }
   async function wipeVault(){
     try{ await idbClear('photos'); await idbClear('meta'); }catch(e){}
@@ -934,7 +1052,7 @@
         const bytes=await decBuf(impKey, b64ToU8(p.dataIv), dataCt);
         const m=await decJSON(impKey, b64ToU8(p.metaIv), b64ToU8(p.metaCt));
         const blob=new Blob([bytes], {type:m.type||'image/png'});
-        const it={id:p.id, title:m.title||'', url:URL.createObjectURL(blob), type:m.type||'image/png', createdAt:m.createdAt||Date.now()};
+        const it={id:p.id, title:m.title||'', url:null, type:m.type||'image/png', createdAt:m.createdAt||Date.now()};
         state.items.push(it); await savePhotoWithKey(state.key, it, blob);
         existing.add(p.id); added++;
       }catch(e){}
@@ -1033,10 +1151,18 @@
     clearTimer(); hideScorePop();
     if(!state.order.length){ photo.classList.add('hidden'); empty.classList.remove('hidden'); hud.classList.add('hidden'); updateRank(null); updateRankCount(); return; }
     empty.classList.add('hidden'); photo.classList.remove('hidden');
-    const it=currentItem(); const myToken=++showToken; photo.src=it.url;
+    const it=currentItem(); const myToken=++showToken;
+    photo.onload=photo.onerror=null;
     updateTitleHud(); updateRank(titleOf(it)); updateRankCount();
     if($('#rankList').classList.contains('show')) renderRankList();
-    armAdvance(myToken);
+    // Image déchiffrée à la demande ; l'image précédente reste affichée le temps du déchiffrement.
+    ensureUrl(it).then(u=>{
+      if(myToken!==showToken || state.view!=='slideshow') return;
+      photo.src=u; armAdvance(myToken); prefetchAround();
+    }).catch(()=>{   // photo illisible/absente : on passe à la suivante
+      if(myToken!==showToken || state.paused || state.view!=='slideshow') return;
+      clearTimer(); state.timer=setTimeout(next, 800);
+    });
   }
   function next(){ if(!state.order.length) return; clearTimer();
     const ni=(state.index+1)%state.order.length;
@@ -1088,7 +1214,7 @@
   // ================= Ajout / suppression =================
   async function addItem(title, blob, url){
     const it={id:crypto.randomUUID(), title:(title||'').trim(), url, type:blob.type||'image/png', createdAt:Date.now()};
-    state.items.push(it);
+    state.items.push(it); if(url) touchUrl(it);
     state.lastTitle=it.title || state.lastTitle;
     let saved=true;
     try{ await savePhoto(it, blob); await saveState(); }catch(e){ saved=false; }
@@ -1098,7 +1224,7 @@
   }
   async function removeItem(id){
     const i=state.items.findIndex(x=>x.id===id); if(i<0) return;
-    try{ URL.revokeObjectURL(state.items[i].url); }catch(e){}
+    dropItemImages(state.items[i]);
     state.items.splice(i,1);
     try{ await idbDel('photos', id); await saveState(); }catch(e){}
     afterDataChange();
@@ -1109,7 +1235,7 @@
     const it=currentItem(); if(!it) return;
     clearTimer();                       // évite qu'un minuteur en attente n'affiche une image supprimée
     const keep=state.index;
-    try{ URL.revokeObjectURL(it.url); }catch(e){}
+    dropItemImages(it);
     state.items=state.items.filter(x=>x.id!==it.id);
     try{ await idbDel('photos', it.id); await saveState(); }catch(e){}
     syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount();
@@ -1127,7 +1253,7 @@
     if(nv===null) return; const nt=nv.trim(); if(!nt || nt===oldTitle) return;
     const gi=state.groupOrder.indexOf(oldTitle);
     for(const it of state.items){ if(titleOf(it)===oldTitle){ it.title=nt;
-      try{ const b=await (await fetch(it.url)).blob(); await savePhoto(it, b); }catch(e){} } }
+      try{ const b=await photoBlob(it); await savePhoto(it, b); }catch(e){} } }
     if(gi>=0){ if(!state.groupOrder.includes(nt)) state.groupOrder[gi]=nt; else state.groupOrder.splice(gi,1); }
     if(state.lastTitle===oldTitle) state.lastTitle=nt;
     if(state.scores[oldTitle]!=null){ state.scores[nt]=(state.scores[nt]||0)+state.scores[oldTitle]; delete state.scores[oldTitle]; }
@@ -1267,7 +1393,7 @@
       const row=document.createElement('div'); row.className='score-row';
       const pos=document.createElement('div'); pos.className='pos'+(pts>0&&i<3?' top':''); pos.textContent=(i+1);
       row.appendChild(pos);
-      if(state.showScoreThumbs){ const th=scoreThumb(t); const img=document.createElement('img'); if(th) img.src=th.url; row.appendChild(img); }
+      if(state.showScoreThumbs){ const th=scoreThumb(t); const img=document.createElement('img'); row.appendChild(img); if(th) lazyThumb(th, img, row); }
       const nm=document.createElement('div'); nm.className='nm'; nm.textContent=t; row.appendChild(nm);
       const p=document.createElement('div'); p.className='pts'; p.textContent=pts; row.appendChild(p);
       row.addEventListener('click', ()=>openScoreEdit(t));
@@ -1428,8 +1554,9 @@
       grid.appendChild(hdr);
       const wrap=document.createElement('div'); wrap.className='grid';
       for(const it of list){ const t=document.createElement('div'); t.className='thumb';
-        t.innerHTML='<img src="'+it.url+'"><button class="del">✕</button>';
-        t.querySelector('.del').addEventListener('click',()=>removeItem(it.id)); wrap.appendChild(t); }
+        t.innerHTML='<img alt=""><button class="del">✕</button>';
+        t.querySelector('.del').addEventListener('click',()=>removeItem(it.id)); wrap.appendChild(t);
+        lazyThumb(it, t.querySelector('img'), t); }   // vignette réduite, chargée seulement si visible
       grid.appendChild(wrap);
     }
   }
@@ -1609,7 +1736,8 @@
   function doLock(){
     if(state.key===null) return;
     clearTimer(); releaseWake();
-    for(const it of state.items){ try{URL.revokeObjectURL(it.url);}catch(e){} }
+    resetImageCaches();
+    photo.removeAttribute('src');
     state.items=[]; state.order=[]; state.key=null; state.view='home';
     photo.classList.add('hidden'); homeEl.classList.remove('show');
     showLockScreen('unlock');

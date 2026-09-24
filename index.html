@@ -176,12 +176,13 @@
   .big.danger{background:transparent; border:1px solid var(--danger); color:var(--danger);}
   .hint{font-size:13px; color:var(--muted); line-height:1.5; margin:8px 2px;}
 
-  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:10px; margin-top:10px;}
-  .thumb{position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; background:#000; border:1px solid var(--line);}
-  .thumb img{width:100%; height:100%; object-fit:cover;}
-  .thumb .del{position:absolute; top:3px; right:3px; width:24px; height:24px; border-radius:12px; background:rgba(0,0,0,.6); border:0; color:#fff; font-size:14px; line-height:1;}
-  .grouphdr{font-size:13px; color:var(--muted); margin:16px 2px 2px; display:flex; justify-content:space-between; align-items:center;}
-  .grouphdr .ren{background:var(--panel2); border:1px solid var(--line); border-radius:8px; font-size:12px; padding:3px 9px;}
+  /* Bibliothèque : une ligne par catégorie (pas de miniatures) */
+  .catrow{display:flex; align-items:center; gap:8px; padding:11px 4px; border-bottom:1px solid var(--line);}
+  .catrow .cn{flex:1; min-width:0;}
+  .catrow .ct{font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .catrow .cs{font-size:12px; color:var(--muted); margin-top:2px;}
+  .catrow button{background:var(--panel2); border:1px solid var(--line); border-radius:8px; font-size:13px; padding:6px 10px; flex:none;}
+  .catrow button.del{color:var(--danger); border-color:var(--danger); background:transparent;}
   kbd{background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; font-size:12px;}
   .help-line{padding:7px 0; font-size:14px; display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line);}
 
@@ -377,6 +378,10 @@
           <button class="allbtn" id="filterAll">Tous les groupes</button>
         </div>
         <div style="padding-top:20px">
+          <div class="lbl">Taille du coffre</div>
+          <div class="hint" id="vaultSize">Calcul…</div>
+        </div>
+        <div style="padding-top:20px">
           <div class="lbl">Sauvegarde / transfert</div>
           <div class="hint">Exporte tout le coffre (photos, titres, rang, points) dans un fichier chiffré par ton code. Réimporte-le sur un autre appareil (Mac…) avec le même code.</div>
           <button class="big" id="exportVault">⬇️ Exporter le coffre</button>
@@ -529,7 +534,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.13';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.14';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -662,6 +667,7 @@
     const d=await encBuf(key, buf);
     const m=await encJSON(key, {title:item.title, type:blob.type||item.type||'image/png', createdAt:item.createdAt||Date.now()});
     await idbPut('photos',{id:item.id, metaIv:m.iv, metaCt:m.ct, dataIv:d.iv, dataCt:d.ct});
+    if(photoSizes) photoSizes.set(item.id, d.ct.byteLength);
   }
   async function savePhoto(item, blob){ return savePhotoWithKey(state.key, item, blob); }
 
@@ -763,9 +769,41 @@
     const i=urlLru.indexOf(it); if(i>=0) urlLru.splice(i,1);
     if(it.url){ try{ URL.revokeObjectURL(it.url); }catch(e){} it.url=null; }
     const t=thumbUrls.get(it.id); if(t){ try{ URL.revokeObjectURL(t); }catch(e){} thumbUrls.delete(it.id); }
+    if(photoSizes) photoSizes.delete(it.id);
+  }
+  // Taille chiffrée de chaque photo (id → octets). Mesurée une fois par déverrouillage (curseur, une photo à
+  // la fois), puis tenue à jour à l'ajout/suppression. Sert à l'indicateur « Taille du coffre ».
+  let photoSizes=null, sizesP=null;
+  function ensureSizes(){
+    if(photoSizes) return Promise.resolve(photoSizes);
+    if(sizesP) return sizesP;
+    const gen=vaultGen;
+    sizesP=planPhotoSizes(null).then(list=>{
+      if(gen!==vaultGen) throw new Error('verrouillé');
+      photoSizes=new Map(list.map(e=>[e.id, e.len])); sizesP=null; return photoSizes;
+    }, e=>{ sizesP=null; throw e; });
+    return sizesP;
+  }
+  function fmtBytes(n){
+    if(n>=1073741824) return (n/1073741824).toFixed(2).replace('.',',')+' Go';
+    if(n>=1048576) return Math.round(n/1048576)+' Mo';
+    return Math.max(1,Math.round(n/1024))+' Ko';
+  }
+  function sumSizes(list){ let t=0; if(photoSizes) for(const it of list) t+=photoSizes.get(it.id)||0; return t; }
+  async function renderVaultSize(){
+    const el=$('#vaultSize'); if(!el || state.key===null) return;
+    try{ await ensureSizes(); }catch(e){ return; }
+    let txt=state.items.length+' photo'+(state.items.length>1?'s':'')+' · '+fmtBytes(sumSizes(state.items));
+    try{
+      if(navigator.storage && navigator.storage.estimate){
+        const est=await navigator.storage.estimate();
+        if(est && est.quota) txt+=' — espace utilisé par l\'app : '+fmtBytes(est.usage||0)+' sur '+fmtBytes(est.quota)+' autorisés';
+      }
+    }catch(e){}
+    el.textContent=txt;
   }
   function resetImageCaches(){
-    vaultGen++;
+    vaultGen++; photoSizes=null; sizesP=null;
     for(const it of state.items){ if(it.url){ try{ URL.revokeObjectURL(it.url); }catch(e){} it.url=null; } }
     for(const u of thumbUrls.values()){ try{ URL.revokeObjectURL(u); }catch(e){} }
     urlLru=[]; thumbUrls.clear(); thumbQ=[];
@@ -1222,13 +1260,6 @@
     if(saved) showToast(it.title ? ('Ajouté · '+it.title) : 'Ajouté (sans titre)');
     else showToast('⚠️ « '+(it.title||'sans titre')+' » NON enregistrée — recharge l\'app et réessaie');
   }
-  async function removeItem(id){
-    const i=state.items.findIndex(x=>x.id===id); if(i<0) return;
-    dropItemImages(state.items[i]);
-    state.items.splice(i,1);
-    try{ await idbDel('photos', id); await saveState(); }catch(e){}
-    afterDataChange();
-  }
   // Suppression effective (sans confirmation ni réapparition des menus).
   async function doDeleteCurrent(){
     if(state.view!=='slideshow') return;
@@ -1474,7 +1505,7 @@
 
   // ================= Panneau =================
   const panel=$('#panel');
-  function openPanel(tab){ panel.classList.add('open'); if(tab) selectTab(tab); renderLib(); renderFilters(); renderScores(); syncSettingUI(); }
+  function openPanel(tab){ panel.classList.add('open'); if(tab) selectTab(tab); renderLib(); renderFilters(); renderScores(); syncSettingUI(); renderVaultSize(); }
   function closePanel(){ panel.classList.remove('open'); }
   function selectTab(name){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
     document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
@@ -1540,25 +1571,50 @@
   }
   $('#filterAll').addEventListener('click', selectAllGroups);
 
+  // Bibliothèque : une ligne par catégorie (nb de photos + taille), boutons Renommer / Supprimer. Pas de miniatures.
   function renderLib(){
-    const grid=$('#libGrid'); grid.innerHTML='';
+    const box=$('#libGrid'); box.innerHTML='';
     $('#libCount').textContent=state.items.length?(state.items.length+' image(s) dans le coffre'):'Aucune image pour l\'instant.';
     if(!state.items.length) return;
     const g=groups(); const noCat=state.items.filter(x=>!titleOf(x));
-    const order=[...Object.keys(g), ...(noCat.length?['_none']:[])];
+    const order=[...Object.keys(g), ...(noCat.length?['']:[])];
+    const sizeEls=[];
     for(const key of order){
-      const list=key==='_none'?noCat:g[key];
-      const hdr=document.createElement('div'); hdr.className='grouphdr';
-      const label=document.createElement('span'); label.textContent=(key==='_none'?'Sans titre':key)+' · '+list.length; hdr.appendChild(label);
-      if(key!=='_none'){ const rb=document.createElement('button'); rb.className='ren'; rb.textContent='Renommer'; rb.addEventListener('click',()=>renameGroup(key)); hdr.appendChild(rb); }
-      grid.appendChild(hdr);
-      const wrap=document.createElement('div'); wrap.className='grid';
-      for(const it of list){ const t=document.createElement('div'); t.className='thumb';
-        t.innerHTML='<img alt=""><button class="del">✕</button>';
-        t.querySelector('.del').addEventListener('click',()=>removeItem(it.id)); wrap.appendChild(t);
-        lazyThumb(it, t.querySelector('img'), t); }   // vignette réduite, chargée seulement si visible
-      grid.appendChild(wrap);
+      const list=key===''?noCat:g[key];
+      const row=document.createElement('div'); row.className='catrow';
+      const info=document.createElement('div'); info.className='cn';
+      const t=document.createElement('div'); t.className='ct'; t.textContent=key===''?'(sans titre)':key;
+      const sub=document.createElement('div'); sub.className='cs'; sub.textContent=list.length+' photo'+(list.length>1?'s':'');
+      info.appendChild(t); info.appendChild(sub); row.appendChild(info);
+      sizeEls.push({sub, list});
+      if(key!==''){ const rb=document.createElement('button'); rb.textContent='Renommer'; rb.addEventListener('click',()=>renameGroup(key)); row.appendChild(rb); }
+      const delb=document.createElement('button'); delb.className='del'; delb.textContent='Supprimer'; delb.addEventListener('click',()=>deleteCategory(key)); row.appendChild(delb);
+      box.appendChild(row);
     }
+    // Tailles par catégorie, dès qu'elles sont connues (mesure en arrière-plan la 1ʳᵉ fois)
+    const fill=()=>{ for(const {sub, list} of sizeEls){ if(sub.isConnected) sub.textContent=list.length+' photo'+(list.length>1?'s':'')+' · '+fmtBytes(sumSizes(list)); } };
+    if(photoSizes) fill(); else if(panel.classList.contains('open')) ensureSizes().then(fill).catch(()=>{});
+  }
+  // Supprime DÉFINITIVEMENT toutes les photos d'une catégorie ('' = photos sans titre), avec confirmation.
+  async function deleteCategory(key){
+    const list=state.items.filter(it=>titleOf(it)===key); if(!list.length) return;
+    const name=key===''?'(sans titre)':'« '+key+' »';
+    if(!confirm('Supprimer DÉFINITIVEMENT la catégorie '+name+' et ses '+list.length+' photo'+(list.length>1?'s':'')+' ?\nCette action est irréversible.')) return;
+    clearTimer();
+    const ids=new Set(list.map(it=>it.id));
+    let failed=0;
+    for(const it of list){ try{ await idbDel('photos', it.id); dropItemImages(it); }catch(e){ failed++; ids.delete(it.id); } }
+    state.items=state.items.filter(it=>!ids.has(it.id));
+    for(const id of ids) state.likes.delete(id);
+    if(key!==''){
+      delete state.scores[key];
+      state.groupOrder=state.groupOrder.filter(t=>t!==key);
+      if(state.activeFilters) state.activeFilters.delete(key);
+      if(state.lastTitle===key) state.lastTitle='';
+    }
+    try{ await saveState(); }catch(e){}
+    afterDataChange(); renderScores(); renderVaultSize();
+    showToast(failed ? ('⚠️ '+failed+' photo(s) non supprimée(s)') : ('Catégorie '+name+' supprimée'));
   }
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 

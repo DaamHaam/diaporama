@@ -184,6 +184,8 @@
   .catrow button{background:var(--panel2); border:1px solid var(--line); border-radius:8px; font-size:13px; padding:6px 10px; flex:none;}
   .catrow .cr{min-width:26px; text-align:center; font-weight:800; color:var(--gold); font-size:15px;}
   .catrow .cr.zero{color:var(--muted); font-weight:600;}
+  #creditList .catrow{gap:6px;} #creditList .catrow button{padding:6px 8px;} #creditList .catrow button:disabled{opacity:.3;}
+  #creditList .crtotal{text-align:right; font-size:14px; font-weight:700; color:var(--gold); padding:10px 4px 0;}
   .catrow button.del{color:var(--danger); border-color:var(--danger); background:transparent;}
   kbd{background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; font-size:12px;}
   .help-line{padding:7px 0; font-size:14px; display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line);}
@@ -543,7 +545,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.15B';  // BÊTA — même code que la principale ; suffixe B visible sur accueil + écran de code
+  const APP_VERSION='0.15B2'; // BÊTA — même code que la principale ; suffixe B visible sur accueil + écran de code
 
   // ================= État =================
   const state = {
@@ -1457,8 +1459,9 @@
   }
   // ================= Crédits de catégorie (bonus du mode équitable) =================
   // Distincts des points (Classement), des cœurs (par photo) et du rang (#).
-  function addCredits(t, n){
-    if(n>0) state.credits[t]=(+state.credits[t]||0)+n; else delete state.credits[t];
+  function addCredits(t, n){   // n = +1..+3, -1 (erreur de saisie) ou null (remise à zéro de la catégorie)
+    const c=n===null?0:Math.max(0,(+state.credits[t]||0)+n);
+    if(c>0) state.credits[t]=c; else delete state.credits[t];
     saveState(); renderCredits(); rebuildIfFair();
   }
   function rebuildIfFair(){ if(state.fairMode && state.view==='slideshow'){ buildPlaylist(); show(); } }
@@ -1471,11 +1474,16 @@
       const c=+state.credits[t]||0;
       const row=document.createElement('div'); row.className='catrow';
       const nm=document.createElement('div'); nm.className='cn'; nm.innerHTML='<div class="ct"></div>'; nm.firstChild.textContent=t; row.appendChild(nm);
-      const v=document.createElement('div'); v.className='cr'+(c?'':' zero'); v.textContent=c; row.appendChild(v);
-      for(const n of [1,2,3]){ const b=document.createElement('button'); b.textContent='+'+n; b.addEventListener('click', ()=>addCredits(t, n)); row.appendChild(b); }
-      if(c){ const z=document.createElement('button'); z.className='del'; z.textContent='0'; z.title='Remettre à zéro'; z.addEventListener('click', ()=>addCredits(t, 0)); row.appendChild(z); }
+      const btn=(txt, fn, cls)=>{ const b=document.createElement('button'); b.textContent=txt; if(cls) b.className=cls; b.addEventListener('click', fn); row.appendChild(b); return b; };
+      btn('−1', ()=>addCredits(t, -1)).disabled=!c;
+      for(const n of [1,2,3]) btn('+'+n, ()=>addCredits(t, n));
+      // Remise à zéro de la catégorie : confirmée, pour éviter un clic par inadvertance.
+      btn('0', ()=>{ if(confirm('Remettre à zéro les '+c+' crédit'+(c>1?'s':'')+' de « '+t+' » ?')) addCredits(t, null); }, 'del').disabled=!c;
+      const v=document.createElement('div'); v.className='cr'+(c?'':' zero'); v.textContent=c; row.appendChild(v);   // total à droite
       box.appendChild(row);
     }
+    const total=titles.reduce((a,t)=>a+(+state.credits[t]||0),0);
+    const tot=document.createElement('div'); tot.className='crtotal'; tot.textContent='Total : '+total+' crédit'+(total>1?'s':''); box.appendChild(tot);
   }
   function resetCredits(){
     if(!Object.keys(state.credits).length){ showToast('Aucun crédit à réinitialiser'); return; }
@@ -1737,10 +1745,10 @@
   function resumeIfPaused(){ if(state.paused && state.order.length) togglePause(); }
   let sx=0,sy=0,stt=0,lastTap=0; const zones=$('#zones');
   // Balayage vers le haut depuis le cinquième inférieur de l'écran (barre de menus comprise), sur au moins
-  // un tiers de la hauteur → retour direct à l'accueil (masque les photos d'un seul geste, dur à faire par erreur).
+  // un sixième de la hauteur → retour direct à l'accueil (masque les photos d'un seul geste, dur à faire par erreur).
   function isHomeSwipe(y0, dx, dy, dt){
     const h=window.innerHeight;
-    return state.view==='slideshow' && dt<800 && y0>=h*0.8 && -dy>=h/3 && Math.abs(dy)>Math.abs(dx)*1.5;
+    return state.view==='slideshow' && dt<800 && y0>=h*0.8 && -dy>=h/6 && Math.abs(dy)>Math.abs(dx)*1.5;
   }
   zones.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY; stt=Date.now(); }, {passive:true});
   zones.addEventListener('touchend', e=>{

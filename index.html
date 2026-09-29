@@ -182,6 +182,10 @@
   .catrow .ct{font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   .catrow .cs{font-size:12px; color:var(--muted); margin-top:2px;}
   .catrow button{background:var(--panel2); border:1px solid var(--line); border-radius:8px; font-size:13px; padding:6px 10px; flex:none;}
+  .catrow .cr{min-width:26px; text-align:center; font-weight:800; color:var(--gold); font-size:15px;}
+  .catrow .cr.zero{color:var(--muted); font-weight:600;}
+  #creditList .catrow{gap:6px;} #creditList .catrow button{padding:6px 8px;} #creditList .catrow button:disabled{opacity:.3;}
+  #creditList .crtotal{text-align:right; font-size:14px; font-weight:700; color:var(--gold); padding:10px 4px 0;}
   .catrow button.del{color:var(--danger); border-color:var(--danger); background:transparent;}
   kbd{background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; font-size:12px;}
   .help-line{padding:7px 0; font-size:14px; display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line);}
@@ -378,6 +382,12 @@
           <button class="allbtn" id="filterAll">Tous les groupes</button>
         </div>
         <div style="padding-top:20px">
+          <div class="lbl">Crédits par catégorie</div>
+          <div class="hint">Mode équitable uniquement : chaque crédit ajoute une photo de la catégorie à chaque cycle (en plus des cœurs). Indépendant des points et du rang.</div>
+          <div id="creditList"></div>
+          <button class="allbtn" id="creditReset">Réinitialiser les crédits</button>
+        </div>
+        <div style="padding-top:20px">
           <div class="lbl">Taille du coffre</div>
           <div class="hint" id="vaultSize">Calcul…</div>
         </div>
@@ -404,6 +414,7 @@
         <div class="hint">Gestes pendant le diaporama :</div>
         <div class="help-line"><span>Balayer ← →</span><span>Précédent / Suivant</span></div>
         <div class="help-line"><span>Balayer ↑ (bas vers haut)</span><span>Afficher les menus + Pause</span></div>
+        <div class="help-line"><span>Grand balayage ↑ depuis le bas</span><span>Retour à l'accueil</span></div>
         <div class="help-line"><span>Balayer ↓ (haut vers bas)</span><span>Masquer les menus + Reprise</span></div>
         <div class="help-line"><span>Double-tap sur l'image</span><span>❤️ J'aime (favori)</span></div>
         <div class="help-line"><span>Bouton #</span><span>Attribuer un rang (1–9)</span></div>
@@ -534,7 +545,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.14';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
+  const APP_VERSION='0.15';   // ⬆️ à incrémenter à chaque étape ; affiché sur l'accueil ET l'écran de code
 
   // ================= État =================
   const state = {
@@ -555,6 +566,7 @@
     likeScores: false,    // « un cœur = +1 au classement » de la catégorie de la photo
     groupOrder: [],       // ordre du rang manuel des titres (indépendant des scores)
     scores: {},           // {titre: points} — persistant dans le coffre
+    credits: {},          // {titre: crédits} — bonus du mode équitable (+N photos/cycle), persistant
     likes: new Map(),     // id → nombre de cœurs (1-3) — session uniquement (effacé au rechargement)
     fairCycle: false,     // la playlist courante a-t-elle été construite en mode équitable ?
     timer: null,
@@ -677,7 +689,7 @@
              seriesSize:state.seriesSize, fairMode:state.fairMode, showRank:state.showRank,
              showTitle:state.showTitle, showScoreThumbs:state.showScoreThumbs,
              multiLike:state.multiLike, likeScores:state.likeScores,
-             lastTitle:state.lastTitle, scores:state.scores};
+             lastTitle:state.lastTitle, scores:state.scores, credits:state.credits};
     const e=await encJSON(state.key, o);
     await idbPut('meta',{k:'state', iv:e.iv, ct:e.ct});
   }
@@ -691,6 +703,7 @@
       state.showTitle=o.showTitle??true; state.showScoreThumbs=!!o.showScoreThumbs;
       state.multiLike=!!o.multiLike; state.likeScores=!!o.likeScores;
       state.scores=(o.scores && typeof o.scores==='object')?o.scores:{};
+      state.credits=(o.credits && typeof o.credits==='object')?o.credits:{};
     }catch(e){} }
     // Photos : on ne déchiffre QUE les métadonnées (titre, type, date), par lots au curseur.
     // Les images restent chiffrées dans IndexedDB et sont déchiffrées à la demande (ensureUrl).
@@ -972,8 +985,9 @@
       const vault=await idbGet('meta','vault'); if(!vault){ showToast('Aucun coffre'); closeExport(); return; }
       // State (points + rang) filtré sur les catégories choisies, re-chiffré avec la clé locale.
       const selScores={}; for(const t in state.scores){ if(sel.has(t)) selScores[t]=state.scores[t]; }
+      const selCredits={}; for(const t in state.credits){ if(sel.has(t)) selCredits[t]=state.credits[t]; }
       const selOrder=state.groupOrder.filter(t=>sel.has(t));
-      const e=await encJSON(state.key, { scores:selScores, groupOrder:selOrder });
+      const e=await encJSON(state.key, { scores:selScores, credits:selCredits, groupOrder:selOrder });
       const stateField={ iv:abToB64(e.iv), ct:abToB64(e.ct) };
       const sizes=await planPhotoSizes(allSelected?null:allowedIds);
       if(!sizes.length){ showToast('Aucune photo à exporter'); closeExport(); return; }
@@ -1100,6 +1114,9 @@
     if(impState.scores && typeof impState.scores==='object'){
       for(const t in impState.scores){ state.scores[t]=(+impState.scores[t]||0); }
     }
+    if(impState.credits && typeof impState.credits==='object'){   // crédits : même logique que les points
+      for(const t in impState.credits){ const c=+impState.credits[t]||0; if(c>0) state.credits[t]=c; else delete state.credits[t]; }
+    }
     if(Array.isArray(impState.groupOrder)){
       for(const t of impState.groupOrder){ if(!state.groupOrder.includes(t)) state.groupOrder.push(t); }
     }
@@ -1155,6 +1172,14 @@
       // (1 à 3), en plus du tirage neutre. La catégorie likée a donc plus de photos.
       if(state.likes.size){
         for(const k of pt){ for(const it of g[k]){ const c=state.likes.get(it.id)||0; for(let i=0;i<c;i++) cycle.push(it); } }
+      }
+      // Crédits de catégorie : N crédits = N photos de plus de cette catégorie à chaque cycle.
+      // On pioche d'abord parmi les photos absentes du tirage neutre, puis au hasard si la catégorie est trop petite.
+      for(const k of pt){
+        const n=+state.credits[k]||0; if(n<=0) continue;
+        const inCycle=new Set(cycle.map(it=>it.id));
+        const pool=shuffle(g[k].filter(it=>!inCycle.has(it.id))), all=g[k];
+        for(let i=0;i<n;i++) cycle.push(i<pool.length ? pool[i] : all[Math.floor(Math.random()*all.length)]);
       }
       list=shuffle(cycle); state.fairCycle=true;
     } else if(state.seriesMode && pt.length){
@@ -1222,7 +1247,7 @@
   function togglePause(){ state.paused=!state.paused; $('#btnPlay').textContent=state.paused?'▶️':'⏸';
     pausePill.textContent=state.paused?'⏸':'▶️'; pausePill.classList.add('show'); setTimeout(()=>pausePill.classList.remove('show'),500);
     if(state.paused) clearTimer(); else show(); }
-  function rebuild(){ syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount(); }
+  function rebuild(){ syncGroups(); buildPlaylist(); renderFilters(); renderLib(); renderCredits(); updateRankCount(); }
   function afterDataChange(){ rebuild(); if(state.view==='slideshow') show(); else showHome(); }
 
   // ---- Écran d'accueil / diaporama ----
@@ -1233,7 +1258,7 @@
     $('#homePlay').classList.toggle('hidden', n===0);
   }
   function goHome(){
-    state.view='home'; clearTimer(); releaseWake();
+    state.view='home'; clearTimer(); releaseWake(); hideScorePop();
     document.body.classList.remove('immersive'); state.immersive=false;
     $('#rankList').classList.remove('show');
     photo.classList.add('hidden');
@@ -1288,6 +1313,7 @@
     if(gi>=0){ if(!state.groupOrder.includes(nt)) state.groupOrder[gi]=nt; else state.groupOrder.splice(gi,1); }
     if(state.lastTitle===oldTitle) state.lastTitle=nt;
     if(state.scores[oldTitle]!=null){ state.scores[nt]=(state.scores[nt]||0)+state.scores[oldTitle]; delete state.scores[oldTitle]; }
+    if(state.credits[oldTitle]!=null){ state.credits[nt]=(state.credits[nt]||0)+state.credits[oldTitle]; delete state.credits[oldTitle]; }
     await saveState(); afterDataChange(); showToast('Groupe renommé');
   }
 
@@ -1431,6 +1457,39 @@
       box.appendChild(row);
     });
   }
+  // ================= Crédits de catégorie (bonus du mode équitable) =================
+  // Distincts des points (Classement), des cœurs (par photo) et du rang (#).
+  function addCredits(t, n){   // n = +1..+3, -1 (erreur de saisie) ou null (remise à zéro de la catégorie)
+    const c=n===null?0:Math.max(0,(+state.credits[t]||0)+n);
+    if(c>0) state.credits[t]=c; else delete state.credits[t];
+    saveState(); renderCredits(); rebuildIfFair();
+  }
+  function rebuildIfFair(){ if(state.fairMode && state.view==='slideshow'){ buildPlaylist(); show(); } }
+  function renderCredits(){
+    const box=$('#creditList'); if(!box) return; box.innerHTML='';
+    const rm=playedRankMap();
+    const titles=allTitles().filter(t=>t!=='').sort((a,b)=>(rm[a]||999)-(rm[b]||999) || a.localeCompare(b));
+    if(!titles.length){ box.innerHTML='<div class="hint">Aucune catégorie pour l\'instant.</div>'; return; }
+    for(const t of titles){
+      const c=+state.credits[t]||0;
+      const row=document.createElement('div'); row.className='catrow';
+      const nm=document.createElement('div'); nm.className='cn'; nm.innerHTML='<div class="ct"></div>'; nm.firstChild.textContent=t; row.appendChild(nm);
+      const btn=(txt, fn, cls)=>{ const b=document.createElement('button'); b.textContent=txt; if(cls) b.className=cls; b.addEventListener('click', fn); row.appendChild(b); return b; };
+      btn('−1', ()=>addCredits(t, -1)).disabled=!c;
+      for(const n of [1,2,3]) btn('+'+n, ()=>addCredits(t, n));
+      // Remise à zéro de la catégorie : confirmée, pour éviter un clic par inadvertance.
+      btn('0', ()=>{ if(confirm('Remettre à zéro les '+c+' crédit'+(c>1?'s':'')+' de « '+t+' » ?')) addCredits(t, null); }, 'del').disabled=!c;
+      const v=document.createElement('div'); v.className='cr'+(c?'':' zero'); v.textContent=c; row.appendChild(v);   // total à droite
+      box.appendChild(row);
+    }
+    const total=titles.reduce((a,t)=>a+(+state.credits[t]||0),0);
+    const tot=document.createElement('div'); tot.className='crtotal'; tot.textContent='Total : '+total+' crédit'+(total>1?'s':''); box.appendChild(tot);
+  }
+  function resetCredits(){
+    if(!Object.keys(state.credits).length){ showToast('Aucun crédit à réinitialiser'); return; }
+    if(!confirm('Remettre tous les crédits à zéro ?')) return;
+    state.credits={}; saveState(); renderCredits(); rebuildIfFair(); showToast('Crédits remis à zéro');
+  }
   function resetScores(){
     if(!confirm('Remettre tous les scores à zéro ?')) return;
     state.scores={}; saveState(); renderScores(); showToast('Scores remis à zéro');
@@ -1505,7 +1564,7 @@
 
   // ================= Panneau =================
   const panel=$('#panel');
-  function openPanel(tab){ panel.classList.add('open'); if(tab) selectTab(tab); renderLib(); renderFilters(); renderScores(); syncSettingUI(); renderVaultSize(); }
+  function openPanel(tab){ panel.classList.add('open'); if(tab) selectTab(tab); renderLib(); renderFilters(); renderScores(); renderCredits(); syncSettingUI(); renderVaultSize(); }
   function closePanel(){ panel.classList.remove('open'); }
   function selectTab(name){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
     document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
@@ -1607,7 +1666,7 @@
     state.items=state.items.filter(it=>!ids.has(it.id));
     for(const id of ids) state.likes.delete(id);
     if(key!==''){
-      delete state.scores[key];
+      delete state.scores[key]; delete state.credits[key];
       state.groupOrder=state.groupOrder.filter(t=>t!==key);
       if(state.activeFilters) state.activeFilters.delete(key);
       if(state.lastTitle===key) state.lastTitle='';
@@ -1672,6 +1731,7 @@
   scorePop.querySelectorAll('button').forEach(b=>b.addEventListener('click', ()=>{ addScore(+b.dataset.pts); hideScorePop(); }));
   document.addEventListener('click', e=>{ if(!scorePop.classList.contains('hidden') && !scorePop.contains(e.target) && e.target.id!=='scoreBtn') hideScorePop(); });
   $('#scoreReset').addEventListener('click', resetScores);
+  $('#creditReset').addEventListener('click', resetCredits);
   $('#scoreThumbsToggle').addEventListener('click', ()=>{ state.showScoreThumbs=!state.showScoreThumbs; saveState(); renderScores(); });
   $('#seGrid').querySelectorAll('button').forEach(b=>b.addEventListener('click', ()=>{
     if(!seCurrent) return; addPointsTo(seCurrent, +b.dataset.pts); $('#seTotal').textContent=state.scores[seCurrent]||0;
@@ -1684,10 +1744,17 @@
   function pauseIfPlaying(){ if(!state.paused && state.order.length) togglePause(); }
   function resumeIfPaused(){ if(state.paused && state.order.length) togglePause(); }
   let sx=0,sy=0,stt=0,lastTap=0; const zones=$('#zones');
+  // Balayage vers le haut depuis le cinquième inférieur de l'écran (barre de menus comprise), sur au moins
+  // un sixième de la hauteur → retour direct à l'accueil (masque les photos d'un seul geste, dur à faire par erreur).
+  function isHomeSwipe(y0, dx, dy, dt){
+    const h=window.innerHeight;
+    return state.view==='slideshow' && dt<800 && y0>=h*0.8 && -dy>=h/6 && Math.abs(dy)>Math.abs(dx)*1.5;
+  }
   zones.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY; stt=Date.now(); }, {passive:true});
   zones.addEventListener('touchend', e=>{
     const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy;
     const adx=Math.abs(dx), ady=Math.abs(dy); const dt=Date.now()-stt;
+    if(isHomeSwipe(sy, dx, dy, dt)){ goHome(); return; }
     if(dt<600 && adx>50 && adx>ady*1.5){ if(dx<0) next(); else prev(); return; }        // balayage horizontal
     if(dt<600 && ady>50 && ady>adx*1.5){                                                  // balayage vertical
       if(dy<0){ setImmersive(false); pauseIfPlaying(); }   // vers le haut : menus + pause
@@ -1699,6 +1766,13 @@
       if(now-lastTap<300){ likeCurrent(); lastTap=0; } else { lastTap=now; }              // double-tap → like
     }
   }, {passive:true});
+  // Même geste quand il démarre sur la barre de boutons (elle est au-dessus des zones).
+  const barEl=$('#bar'); let bsx=0, bsy=0, bst=0;
+  barEl.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; bsx=t.clientX; bsy=t.clientY; bst=Date.now(); }, {passive:true});
+  barEl.addEventListener('touchend', e=>{
+    const t=e.changedTouches[0];
+    if(isHomeSwipe(bsy, t.clientX-bsx, t.clientY-bsy, Date.now()-bst)){ e.preventDefault(); goHome(); }
+  });
   // Souris (Mac) : double-clic sur l'image = like.
   zones.addEventListener('dblclick', e=>{ e.preventDefault(); likeCurrent(); });
   // Souris (Mac) : approcher le bas de l'écran ré-affiche la barre de menus (comme un lecteur vidéo).

@@ -42,6 +42,19 @@
   #hud{position:absolute; top:calc(env(safe-area-inset-top) + 12px); left:14px; z-index:20;
     color:#fff; font-size:13px; background:rgba(0,0,0,.35); padding:5px 10px; border-radius:10px;
     max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:opacity .3s;}
+  /* ---- Liste des rangs (touche R) ---- */
+  #rankList{position:absolute; top:calc(env(safe-area-inset-top) + 48px); left:14px; z-index:24;
+    background:rgba(0,0,0,.62); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.14); border-radius:12px; padding:6px; max-width:70%; max-height:70%;
+    overflow-y:auto; display:none;}
+  #rankList.show{display:block;}
+  #rankList .rl-row{display:flex; align-items:center; gap:9px; padding:5px 8px; border-radius:8px;
+    color:#fff; font-size:14px; white-space:nowrap;}
+  #rankList .rl-row .rl-n{min-width:20px; text-align:center; font-weight:800; color:var(--gold);
+    background:rgba(255,255,255,.08); border-radius:6px; padding:1px 4px; font-size:13px;}
+  #rankList .rl-row.cur{background:rgba(255,255,255,.16);}
+  #rankList .rl-row.off{opacity:.4;}
+  #rankList .rl-row.off .rl-n{color:var(--muted);}
   #pausePill{position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:20;
     font-size:60px; opacity:0; transition:opacity .25s; pointer-events:none; text-shadow:0 3px 10px rgba(0,0,0,.7);}
   #pausePill.show{opacity:.9;}
@@ -94,6 +107,19 @@
   #seGrid button.minus{color:var(--danger); border-color:var(--danger);}
   #seGrid button.plus{color:var(--gold);}
   #seGrid button:active{background:#3a3a3c;}
+  #exportModal{position:absolute; inset:0; z-index:82; background:rgba(0,0,0,.7); display:flex; align-items:center; justify-content:center; padding:22px;
+    opacity:0; pointer-events:none; transition:opacity .2s;}
+  #exportModal.open{opacity:1; pointer-events:auto;}
+  #exProgress{text-align:center; font-size:15px; font-weight:700; margin:12px 0;}
+  #exShare[disabled]{opacity:.5;}
+  .exCatsBtns{display:flex; gap:10px; margin:8px 0;}
+  .miniBtn{flex:1; padding:9px; border-radius:10px; background:var(--panel2); border:1px solid var(--line); color:#fff; font-size:14px; font-weight:600;}
+  .miniBtn:active{background:#3a3a3c;}
+  #exCats{max-height:42vh; overflow-y:auto; margin:4px 0 4px; border:1px solid var(--line); border-radius:12px;}
+  #exCats label{display:flex; align-items:center; gap:12px; padding:11px 12px; border-bottom:1px solid var(--line); font-size:15px;}
+  #exCats label:last-child{border-bottom:0;}
+  #exCats input{width:20px; height:20px; flex:none;}
+  #exCats .cnt{color:var(--muted); font-size:13px; flex:none;}
 
   /* ---- Barre ---- */
   #bar{position:absolute; left:0; right:0; bottom:0; z-index:30; height:calc(var(--bar-h) + env(safe-area-inset-bottom));
@@ -150,12 +176,15 @@
   .big.danger{background:transparent; border:1px solid var(--danger); color:var(--danger);}
   .hint{font-size:13px; color:var(--muted); line-height:1.5; margin:8px 2px;}
 
-  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:10px; margin-top:10px;}
-  .thumb{position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; background:#000; border:1px solid var(--line);}
-  .thumb img{width:100%; height:100%; object-fit:cover;}
-  .thumb .del{position:absolute; top:3px; right:3px; width:24px; height:24px; border-radius:12px; background:rgba(0,0,0,.6); border:0; color:#fff; font-size:14px; line-height:1;}
-  .grouphdr{font-size:13px; color:var(--muted); margin:16px 2px 2px; display:flex; justify-content:space-between; align-items:center;}
-  .grouphdr .ren{background:var(--panel2); border:1px solid var(--line); border-radius:8px; font-size:12px; padding:3px 9px;}
+  /* Bibliothèque : une ligne par catégorie (pas de miniatures) */
+  .catrow{display:flex; align-items:center; gap:8px; padding:11px 4px; border-bottom:1px solid var(--line);}
+  .catrow .cn{flex:1; min-width:0;}
+  .catrow .ct{font-size:15px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .catrow .cs{font-size:12px; color:var(--muted); margin-top:2px;}
+  .catrow button{background:var(--panel2); border:1px solid var(--line); border-radius:8px; font-size:13px; padding:6px 10px; flex:none;}
+  .catrow .cr{min-width:26px; text-align:center; font-weight:800; color:var(--gold); font-size:15px;}
+  .catrow .cr.zero{color:var(--muted); font-weight:600;}
+  .catrow button.del{color:var(--danger); border-color:var(--danger); background:transparent;}
   kbd{background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:1px 7px; font-size:12px;}
   .help-line{padding:7px 0; font-size:14px; display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line);}
 
@@ -248,6 +277,7 @@
 
 <div id="hud" class="hidden"></div>
 <div id="rank"></div>
+<div id="rankList"></div>
 <div id="pausePill">⏸</div>
 <div id="likeHeart">❤️</div>
 
@@ -326,6 +356,14 @@
           <label class="sw"><input type="checkbox" id="setTitle" checked><span class="track"></span><span class="knob"></span></label>
         </div>
         <div class="row">
+          <div><div class="lbl">Plusieurs cœurs</div><div class="sub">Reliker une photo ajoute un cœur (max 3)</div></div>
+          <label class="sw"><input type="checkbox" id="setMultiLike"><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div class="row">
+          <div><div class="lbl">Cœur = point au classement</div><div class="sub">Chaque cœur ajoute +1 au Classement de la catégorie</div></div>
+          <label class="sw"><input type="checkbox" id="setLikeScores"><span class="track"></span><span class="knob"></span></label>
+        </div>
+        <div class="row">
           <div><div class="lbl">Afficher le rang</div><div class="sub">Numéro doré en haut à droite</div></div>
           <label class="sw"><input type="checkbox" id="setRank" checked><span class="track"></span><span class="knob"></span></label>
         </div>
@@ -340,6 +378,16 @@
           <div class="lbl">Groupes à afficher</div>
           <div class="chips" id="filterChips"></div>
           <button class="allbtn" id="filterAll">Tous les groupes</button>
+        </div>
+        <div style="padding-top:20px">
+          <div class="lbl">Crédits par catégorie</div>
+          <div class="hint">Mode équitable uniquement : chaque crédit ajoute une photo de la catégorie à chaque cycle (en plus des cœurs). Indépendant des points et du rang.</div>
+          <div id="creditList"></div>
+          <button class="allbtn" id="creditReset">Réinitialiser les crédits</button>
+        </div>
+        <div style="padding-top:20px">
+          <div class="lbl">Taille du coffre</div>
+          <div class="hint" id="vaultSize">Calcul…</div>
         </div>
         <div style="padding-top:20px">
           <div class="lbl">Sauvegarde / transfert</div>
@@ -364,6 +412,7 @@
         <div class="hint">Gestes pendant le diaporama :</div>
         <div class="help-line"><span>Balayer ← →</span><span>Précédent / Suivant</span></div>
         <div class="help-line"><span>Balayer ↑ (bas vers haut)</span><span>Afficher les menus + Pause</span></div>
+        <div class="help-line"><span>Grand balayage ↑ depuis le bas</span><span>Retour à l'accueil</span></div>
         <div class="help-line"><span>Balayer ↓ (haut vers bas)</span><span>Masquer les menus + Reprise</span></div>
         <div class="help-line"><span>Double-tap sur l'image</span><span>❤️ J'aime (favori)</span></div>
         <div class="help-line"><span>Bouton #</span><span>Attribuer un rang (1–9)</span></div>
@@ -404,6 +453,7 @@
   <div class="card">
     <h3 id="rankTitle">Attribuer un rang</h3>
     <div id="rankGrid"></div>
+    <button class="big" id="rankShuffle" style="margin-top:12px;background:var(--panel2);border:1px solid var(--line)">🎲 Retirer les rangs au hasard (toutes catégories)</button>
     <div class="card-actions">
       <button class="btn-cancel" id="rankClear">Retirer le rang</button>
       <button class="btn-cancel" id="rankCancel">Fermer</button>
@@ -426,6 +476,33 @@
     </div>
     <div class="card-actions">
       <button class="btn-ok" id="seClose">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<div id="exportModal">
+  <div class="card">
+    <h3 id="exTitle">Exporter le coffre</h3>
+    <div id="exSelect">
+      <div class="hint">Décoche les catégories à exclure pour obtenir un fichier plus petit. Toutes cochées = coffre complet.</div>
+      <div class="exCatsBtns">
+        <button class="miniBtn" id="exAll">Tout cocher</button>
+        <button class="miniBtn" id="exNone">Tout décocher</button>
+      </div>
+      <div id="exCats"></div>
+      <div class="card-actions">
+        <button class="btn-ok" id="exStart">Continuer</button>
+      </div>
+    </div>
+    <div id="exRun" style="display:none">
+      <div class="hint" id="exInfo"></div>
+      <div id="exProgress"></div>
+      <div class="card-actions">
+        <button class="btn-ok" id="exShare" disabled>Préparation…</button>
+      </div>
+    </div>
+    <div class="card-actions">
+      <button id="exCancel" style="background:var(--panel2);border:1px solid var(--line);color:#fff">Fermer</button>
     </div>
   </div>
 </div>
@@ -466,7 +543,7 @@
 (function(){
   // ================= Constantes =================
   const DB_NAME='diaporama-vault', DB_VER=1, ITERS=310000, VTOKEN='diapo-vault-v1', PIN_LEN=8;
-  const APP_VERSION='0.03B';  // BÊTA — même code que la principale ; suffixe B visible sur accueil + écran de code
+  const APP_VERSION='0.15B';  // BÊTA — même code que la principale ; suffixe B visible sur accueil + écran de code
 
   // ================= État =================
   const state = {
@@ -483,10 +560,12 @@
     showRank: true,       // rang manuel (# doré, haut droite)
     showTitle: true,      // titre de la catégorie (+ ❤️) en haut à gauche, persistant
     showScoreThumbs: false, // vignettes dans l'onglet Classement, masquées par défaut
+    multiLike: false,     // « plusieurs cœurs » : reliker une photo ajoute un cœur (plafond 3)
+    likeScores: false,    // « un cœur = +1 au classement » de la catégorie de la photo
     groupOrder: [],       // ordre du rang manuel des titres (indépendant des scores)
     scores: {},           // {titre: points} — persistant dans le coffre
-    likes: new Set(),     // ids des photos likées — session uniquement (effacé au rechargement)
-    boostPhase: 0,        // 0=aucun like, 1=cycle neutre en cours avant boost, 2=boost actif
+    credits: {},          // {titre: crédits} — bonus du mode équitable (+N photos/cycle), persistant
+    likes: new Map(),     // id → nombre de cœurs (1-3) — session uniquement (effacé au rechargement)
     fairCycle: false,     // la playlist courante a-t-elle été construite en mode équitable ?
     timer: null,
     immersive: false,
@@ -514,11 +593,24 @@
         if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta',{keyPath:'k'});
         if(!d.objectStoreNames.contains('photos')) d.createObjectStore('photos',{keyPath:'id'});
       };
-      r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);
+      r.onsuccess=()=>{ const d=r.result;
+        // La connexion peut se fermer (mise en veille de l'onglet / arrière-plan iOS, versionchange d'un
+        // autre onglet…). On oublie alors le cache pour rouvrir une connexion fraîche au prochain accès.
+        d.onclose=()=>{ dbp=null; };
+        d.onversionchange=()=>{ try{ d.close(); }catch(e){} dbp=null; };
+        res(d);
+      };
+      r.onerror=()=>{ dbp=null; rej(r.error); };
     });
     return dbp;
   }
-  function tx(store, mode){ return db().then(d=>d.transaction(store,mode).objectStore(store)); }
+  // Ouvre une transaction ; si la connexion en cache est en train de se fermer, on en rouvre une et on réessaie.
+  function tx(store, mode){
+    return db().then(d=>{
+      try{ return d.transaction(store,mode).objectStore(store); }
+      catch(e){ dbp=null; return db().then(d2=>d2.transaction(store,mode).objectStore(store)); }
+    });
+  }
   function idbGet(store,key){ return tx(store,'readonly').then(s=>new Promise((res,rej)=>{const r=s.get(key); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);})); }
   function idbGetAll(store){ return tx(store,'readonly').then(s=>new Promise((res,rej)=>{const r=s.getAll(); r.onsuccess=()=>res(r.result||[]); r.onerror=()=>rej(r.error);})); }
   function idbPut(store,val){ return tx(store,'readwrite').then(s=>new Promise((res,rej)=>{const r=s.put(val); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error);})); }
@@ -571,9 +663,9 @@
     const salt=crypto.getRandomValues(new Uint8Array(16));
     const newKey=await deriveKey(newPin, salt, ITERS);
     const ver=await encBuf(newKey, enc.encode(VTOKEN));
-    // re-chiffrer chaque photo (les données sont déjà en clair en mémoire)
+    // re-chiffrer chaque photo, une à la fois (déchiffrée depuis IndexedDB avec l'ancienne clé)
     for(const it of state.items){
-      const resp=await fetch(it.url); const blob=await resp.blob();
+      const blob=await photoBlob(it);
       await savePhotoWithKey(newKey, it, blob);
     }
     state.key=newKey;
@@ -585,6 +677,7 @@
     const d=await encBuf(key, buf);
     const m=await encJSON(key, {title:item.title, type:blob.type||item.type||'image/png', createdAt:item.createdAt||Date.now()});
     await idbPut('photos',{id:item.id, metaIv:m.iv, metaCt:m.ct, dataIv:d.iv, dataCt:d.ct});
+    if(photoSizes) photoSizes.set(item.id, d.ct.byteLength);
   }
   async function savePhoto(item, blob){ return savePhotoWithKey(state.key, item, blob); }
 
@@ -593,7 +686,8 @@
     const o={groupOrder:state.groupOrder, delay:state.delay, random:state.random, seriesMode:state.seriesMode,
              seriesSize:state.seriesSize, fairMode:state.fairMode, showRank:state.showRank,
              showTitle:state.showTitle, showScoreThumbs:state.showScoreThumbs,
-             lastTitle:state.lastTitle, scores:state.scores};
+             multiLike:state.multiLike, likeScores:state.likeScores,
+             lastTitle:state.lastTitle, scores:state.scores, credits:state.credits};
     const e=await encJSON(state.key, o);
     await idbPut('meta',{k:'state', iv:e.iv, ct:e.ct});
   }
@@ -605,20 +699,172 @@
       state.seriesMode=!!o.seriesMode; state.seriesSize=o.seriesSize||3; state.fairMode=!!o.fairMode;
       state.showRank=o.showRank??true; state.lastTitle=o.lastTitle||'';
       state.showTitle=o.showTitle??true; state.showScoreThumbs=!!o.showScoreThumbs;
+      state.multiLike=!!o.multiLike; state.likeScores=!!o.likeScores;
       state.scores=(o.scores && typeof o.scores==='object')?o.scores:{};
+      state.credits=(o.credits && typeof o.credits==='object')?o.credits:{};
     }catch(e){} }
-    // Photos
+    // Photos : on ne déchiffre QUE les métadonnées (titre, type, date), par lots au curseur.
+    // Les images restent chiffrées dans IndexedDB et sont déchiffrées à la demande (ensureUrl).
+    // Avant v0.13, tout le coffre était chargé + déchiffré ici → au-delà de quelques centaines de Mo,
+    // iOS tuait l'onglet (« Un problème récurrent est survenu »).
+    resetImageCaches();
     state.items=[];
-    const recs=await idbGetAll('photos');
-    for(const r of recs){
-      try{
-        const m=await decJSON(state.key, r.metaIv, r.metaCt);
-        const buf=await decBuf(state.key, r.dataIv, r.dataCt);
-        const blob=new Blob([buf], {type:m.type||'image/png'});
-        const url=URL.createObjectURL(blob);
-        state.items.push({id:r.id, title:m.title||'', url, type:m.type, createdAt:m.createdAt});
-      }catch(e){}
+    let after=null;
+    for(;;){
+      const batch=await readMetaBatch(after, 50);
+      for(const r of batch){
+        try{
+          const m=await decJSON(state.key, r.metaIv, r.metaCt);
+          state.items.push({id:r.id, title:m.title||'', url:null, type:m.type, createdAt:m.createdAt});
+        }catch(e){}
+      }
+      if(batch.length<50) break;
+      after=batch[batch.length-1].id;
     }
+  }
+  // Lit au plus n enregistrements après la clé `after`, en ne gardant que les champs de métadonnées
+  // (les octets de l'image, lus par le curseur, sont abandonnés aussitôt → libérables).
+  function readMetaBatch(after, n){
+    return tx('photos','readonly').then(s=>new Promise((res,rej)=>{
+      const out=[];
+      const req=s.openCursor(after===null?null:IDBKeyRange.lowerBound(after, true));
+      req.onsuccess=()=>{ const c=req.result;
+        if(!c || out.length>=n){ res(out); return; }
+        const v=c.value; out.push({id:v.id, metaIv:v.metaIv, metaCt:v.metaCt});
+        c.continue();
+      };
+      req.onerror=()=>rej(req.error);
+    }));
+  }
+
+  // ================= Images à la demande =================
+  // Seules quelques images déchiffrées vivent en mémoire (it.url) : la courante, les voisines préchargées
+  // et quelques récentes. Les plus anciennes sont libérées (revoke) au-delà de URL_CACHE_MAX.
+  const URL_CACHE_MAX=8, THUMB_PX=240;
+  let urlLru=[];              // items ayant it.url, du plus ancien au plus récent
+  let vaultGen=0;             // incrémenté au verrouillage/rechargement : invalide les déchiffrements en vol
+  const thumbUrls=new Map();  // id → object URL d'une vignette JPEG réduite (quelques dizaines de Ko)
+  async function photoBlob(it){
+    const r=await idbGet('photos', it.id); if(!r) throw new Error('photo absente');
+    const buf=await decBuf(state.key, r.dataIv, r.dataCt);
+    return new Blob([buf], {type:it.type||'image/png'});
+  }
+  function touchUrl(it){
+    const i=urlLru.indexOf(it); if(i>=0) urlLru.splice(i,1); urlLru.push(it);
+    const cur=currentItem();
+    for(let k=0; urlLru.length>URL_CACHE_MAX && k<urlLru.length; ){
+      const old=urlLru[k];
+      if(old===cur || old===it){ k++; continue; }
+      urlLru.splice(k,1);
+      try{ URL.revokeObjectURL(old.url); }catch(e){} old.url=null;
+    }
+  }
+  function ensureUrl(it){
+    if(it.url){ touchUrl(it); return Promise.resolve(it.url); }
+    if(it._load) return it._load;
+    const gen=vaultGen;
+    it._load=photoBlob(it).then(b=>{
+      it._load=null;
+      if(gen!==vaultGen) throw new Error('verrouillé');
+      if(!it.url) it.url=URL.createObjectURL(b);
+      touchUrl(it); return it.url;
+    }, e=>{ it._load=null; throw e; });
+    return it._load;
+  }
+  // Précharge les voisines de l'image courante (suivante, celle d'après, précédente).
+  function prefetchAround(){
+    const n=state.order.length; if(n<2) return;
+    for(const d of [1,2,-1]){ const it=state.order[(state.index+d+n)%n]; if(it && !it.url) ensureUrl(it).catch(()=>{}); }
+  }
+  function dropItemImages(it){
+    const i=urlLru.indexOf(it); if(i>=0) urlLru.splice(i,1);
+    if(it.url){ try{ URL.revokeObjectURL(it.url); }catch(e){} it.url=null; }
+    const t=thumbUrls.get(it.id); if(t){ try{ URL.revokeObjectURL(t); }catch(e){} thumbUrls.delete(it.id); }
+    if(photoSizes) photoSizes.delete(it.id);
+  }
+  // Taille chiffrée de chaque photo (id → octets). Mesurée une fois par déverrouillage (curseur, une photo à
+  // la fois), puis tenue à jour à l'ajout/suppression. Sert à l'indicateur « Taille du coffre ».
+  let photoSizes=null, sizesP=null;
+  function ensureSizes(){
+    if(photoSizes) return Promise.resolve(photoSizes);
+    if(sizesP) return sizesP;
+    const gen=vaultGen;
+    sizesP=planPhotoSizes(null).then(list=>{
+      if(gen!==vaultGen) throw new Error('verrouillé');
+      photoSizes=new Map(list.map(e=>[e.id, e.len])); sizesP=null; return photoSizes;
+    }, e=>{ sizesP=null; throw e; });
+    return sizesP;
+  }
+  function fmtBytes(n){
+    if(n>=1073741824) return (n/1073741824).toFixed(2).replace('.',',')+' Go';
+    if(n>=1048576) return Math.round(n/1048576)+' Mo';
+    return Math.max(1,Math.round(n/1024))+' Ko';
+  }
+  function sumSizes(list){ let t=0; if(photoSizes) for(const it of list) t+=photoSizes.get(it.id)||0; return t; }
+  async function renderVaultSize(){
+    const el=$('#vaultSize'); if(!el || state.key===null) return;
+    try{ await ensureSizes(); }catch(e){ return; }
+    let txt=state.items.length+' photo'+(state.items.length>1?'s':'')+' · '+fmtBytes(sumSizes(state.items));
+    try{
+      if(navigator.storage && navigator.storage.estimate){
+        const est=await navigator.storage.estimate();
+        if(est && est.quota) txt+=' — espace utilisé par l\'app : '+fmtBytes(est.usage||0)+' sur '+fmtBytes(est.quota)+' autorisés';
+      }
+    }catch(e){}
+    el.textContent=txt;
+  }
+  function resetImageCaches(){
+    vaultGen++; photoSizes=null; sizesP=null;
+    for(const it of state.items){ if(it.url){ try{ URL.revokeObjectURL(it.url); }catch(e){} it.url=null; } }
+    for(const u of thumbUrls.values()){ try{ URL.revokeObjectURL(u); }catch(e){} }
+    urlLru=[]; thumbUrls.clear(); thumbQ=[];
+  }
+  // Vignettes : image déchiffrée puis réduite (côté court = THUMB_PX) en JPEG, une à la fois.
+  async function makeThumb(it){
+    if(thumbUrls.has(it.id)) return thumbUrls.get(it.id);
+    const gen=vaultGen;
+    const blob=await photoBlob(it);
+    let bmp=null, tmpUrl=null;
+    try{
+      let src, w, h;
+      if(window.createImageBitmap){ bmp=await createImageBitmap(blob); src=bmp; w=bmp.width; h=bmp.height; }
+      else { tmpUrl=URL.createObjectURL(blob); const im=new Image(); im.src=tmpUrl; await im.decode(); src=im; w=im.naturalWidth; h=im.naturalHeight; }
+      const s=Math.min(1, THUMB_PX/Math.max(1,Math.min(w,h)));
+      const c=document.createElement('canvas'); c.width=Math.max(1,Math.round(w*s)); c.height=Math.max(1,Math.round(h*s));
+      c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+      const tb=await new Promise(r=>c.toBlob(r, 'image/jpeg', 0.8));
+      c.width=c.height=0;
+      if(!tb) throw new Error('vignette');
+      if(gen!==vaultGen) throw new Error('verrouillé');
+      if(thumbUrls.has(it.id)) return thumbUrls.get(it.id);
+      const u=URL.createObjectURL(tb); thumbUrls.set(it.id, u); return u;
+    } finally { if(bmp){ try{ bmp.close(); }catch(e){} } if(tmpUrl){ try{ URL.revokeObjectURL(tmpUrl); }catch(e){} } }
+  }
+  let thumbQ=[], thumbBusy=false;
+  const thumbTargets=new WeakMap();   // élément observé → {it, img}
+  const thumbIO=('IntersectionObserver' in window) ? new IntersectionObserver(ents=>{
+    for(const e of ents){
+      if(!e.target.isConnected){ thumbIO.unobserve(e.target); continue; }
+      if(!e.isIntersecting || !panel.classList.contains('open')) continue;
+      thumbIO.unobserve(e.target);
+      const t=thumbTargets.get(e.target); if(t) queueThumb(t.it, t.img);
+    }
+  }, {rootMargin:'300px'}) : null;
+  // Charge la vignette de `it` dans `img` quand `target` devient visible (panneau ouvert).
+  function lazyThumb(it, img, target){
+    const u=thumbUrls.get(it.id); if(u){ img.src=u; return; }
+    if(thumbIO){ thumbTargets.set(target, {it, img}); thumbIO.observe(target); }
+    else queueThumb(it, img);
+  }
+  function queueThumb(it, img){ thumbQ.push({it, img}); if(!thumbBusy) pumpThumbs(); }
+  async function pumpThumbs(){
+    thumbBusy=true;
+    while(thumbQ.length){
+      const {it, img}=thumbQ.shift();
+      if(!img.isConnected || state.key===null) continue;
+      try{ const u=await makeThumb(it); if(img.isConnected) img.src=u; }catch(e){}
+    }
+    thumbBusy=false;
   }
   async function wipeVault(){
     try{ await idbClear('photos'); await idbClear('meta'); }catch(e){}
@@ -634,134 +880,245 @@
   // Empêche le verrouillage auto / retour à l'accueil pendant un partage ou un sélecteur de fichier
   // (la feuille de partage iOS et le sélecteur provoquent un blur/visibilitychange transitoire).
   function ioGuard(on){ if(on){ state.ioBusy=true; } else { setTimeout(()=>{ state.ioBusy=false; }, 1500); } }
-  // Lit les photos UNE PAR UNE (curseur) pour ne jamais tout charger en mémoire (évite le crash iOS).
-  // Chaque image chiffrée est enveloppée dans un petit Blob (le navigateur peut la décharger sur disque).
-  function collectPhotosStreaming(onProgress){
+  // Export découpé en plusieurs fichiers : sur iPhone, un Blob trop gros (~700 Mo+) fait dépasser
+  // le plafond mémoire de WebKit → l'onglet est tué au moment du partage. On produit donc des fichiers
+  // de ~250 Mo max, partagés un par un. À l'import, la fusion par id rend l'ordre indifférent.
+  const CHUNK_BYTES=250*1048576;   // taille max d'un fichier-partie (marge sous le plafond mémoire iOS)
+  // Taille chiffrée de chaque photo, lue au curseur (une photo à la fois) — sert à planifier le découpage.
+  // allowedIds (Set) : si fourni, on ne retient que ces ids (export d'un sous-ensemble de catégories).
+  function planPhotoSizes(allowedIds){
     return new Promise((res,rej)=>{
-      const parts=[]; const meta=[]; let n=0;
+      const list=[];
       tx('photos','readonly').then(store=>{
         const req=store.openCursor();
         req.onsuccess=()=>{ const cur=req.result;
-          if(!cur){ res({parts, meta}); return; }
+          if(!cur){ res(list); return; }
           const p=cur.value;
-          const len=(p.dataCt && p.dataCt.byteLength!==undefined)?p.dataCt.byteLength:(p.dataCt?p.dataCt.length:0);
-          meta.push({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCtLen:len });
-          parts.push(new Blob([p.dataCt]));
-          n++; if(onProgress && n%20===0) onProgress(n);
+          if(!allowedIds || allowedIds.has(p.id)){
+            const len=(p.dataCt && p.dataCt.byteLength!==undefined)?p.dataCt.byteLength:(p.dataCt?p.dataCt.length:0);
+            list.push({id:p.id, len});
+          }
           cur.continue();
         };
         req.onerror=()=>rej(req.error);
       }).catch(rej);
     });
   }
+  // Regroupe les ids en tranches dont le total chiffré reste sous `budget`.
+  function planChunks(sizes, budget){
+    const chunks=[]; let cur=[]; let sz=0;
+    for(const e of sizes){
+      if(cur.length && sz+e.len>budget){ chunks.push(cur); cur=[]; sz=0; }
+      cur.push(e.id); sz+=e.len;
+    }
+    if(cur.length) chunks.push(cur);
+    return chunks;
+  }
+  // Construit le fichier .diapo d'UNE partie : ne charge en mémoire que les photos de cette tranche.
+  // Chaque partie est un fichier complet (en-tête coffre + points) → n'importe laquelle est importable seule.
+  // stateField : champ « state » du manifeste déjà prêt ({iv,ct} en base64) ou null.
+  async function buildChunkFile(vault, stateField, ids, part, parts, stamp){
+    const imgParts=[]; const photoMeta=[];
+    for(const id of ids){
+      const p=await idbGet('photos', id); if(!p) continue;   // transaction fraîche par photo (sûr avec await)
+      const len=(p.dataCt && p.dataCt.byteLength!==undefined)?p.dataCt.byteLength:(p.dataCt?p.dataCt.length:0);
+      photoMeta.push({ id:p.id, metaIv:abToB64(p.metaIv), metaCt:abToB64(p.metaCt), dataIv:abToB64(p.dataIv), dataCtLen:len });
+      imgParts.push(new Blob([p.dataCt]));
+    }
+    const manifest={
+      format:EXPORT_FORMAT, version:2, exportedAt:Date.now(), part, parts,
+      vault:{ salt:abToB64(vault.salt), iters:vault.iters, verIv:abToB64(vault.verIv), verCt:abToB64(vault.verCt) },
+      state: stateField || null,
+      photos: photoMeta
+    };
+    const manifestBytes=enc.encode(JSON.stringify(manifest));
+    const header=new Uint8Array(10); header.set(enc.encode('DIAPO1'),0);
+    new DataView(header.buffer).setUint32(6, manifestBytes.length, false); // big-endian
+    const blob=new Blob([header, manifestBytes, ...imgParts], {type:'application/octet-stream'});
+    const suffix = parts>1 ? '-'+part+'sur'+parts : '';
+    const fname='diaporama-coffre-'+stamp+suffix+'.diapo';
+    return { blob, fname, file:new File([blob], fname, {type:'application/octet-stream'}) };
+  }
+
+  const exportModal=$('#exportModal');
+  let exSession=null;   // { vault, stateField, chunks, stamp, idx, ready, done }
+  function closeExport(){
+    exportModal.classList.remove('open'); exSession=null;
+    const b=$('#exShare'); b.disabled=true; b.textContent='Préparation…';
+    $('#exSelect').style.display=''; $('#exRun').style.display='none';   // réinit pour la prochaine fois
+    ioGuard(false);
+  }
+  // Étape 1 : liste des catégories à cocher/décocher (toutes cochées par défaut).
+  function renderExportCats(){
+    const g=groups(); const box=$('#exCats'); box.innerHTML='';
+    const untitled=state.items.filter(it=>!titleOf(it)).length;
+    const rows=[];
+    for(const t of Object.keys(g)) rows.push({ key:t, label:t, n:g[t].length });
+    if(untitled) rows.push({ key:'', label:'(sans titre)', n:untitled });
+    for(const r of rows){
+      const lab=document.createElement('label');
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.dataset.key=r.key;
+      const span=document.createElement('span'); span.textContent=r.label; span.style.flex='1'; span.style.overflow='hidden'; span.style.textOverflow='ellipsis'; span.style.whiteSpace='nowrap';
+      const cnt=document.createElement('span'); cnt.className='cnt'; cnt.textContent=r.n;
+      lab.appendChild(cb); lab.appendChild(span); lab.appendChild(cnt); box.appendChild(lab);
+    }
+  }
   async function exportVault(){
     if(!state.key){ showToast('Déverrouille le coffre d\'abord'); return; }
+    if(!state.items.length){ showToast('Aucune photo à exporter'); return; }
     ioGuard(true);
+    renderExportCats();
+    $('#exSelect').style.display=''; $('#exRun').style.display='none';
+    const b=$('#exShare'); b.disabled=true; b.textContent='Préparation…';
+    exportModal.classList.add('open');
+  }
+  // Étape 2 : lance la construction/partage pour les catégories cochées.
+  async function startExport(){
     try{
-      showToast('Préparation de l\'export…');
-      const vault=await idbGet('meta','vault'); if(!vault){ showToast('Aucun coffre'); return; }
-      const st=await idbGet('meta','state');
-      const {parts:imgParts, meta:photoMeta}=await collectPhotosStreaming(n=>showToast('Préparation… '+n+' photos'));
-      // Format binaire v2 : "DIAPO1" + longueur manifeste (uint32) + manifeste JSON + octets bruts des images.
-      const manifest={
-        format:EXPORT_FORMAT, version:2, exportedAt:Date.now(),
-        vault:{ salt:abToB64(vault.salt), iters:vault.iters, verIv:abToB64(vault.verIv), verCt:abToB64(vault.verCt) },
-        state: st ? { iv:abToB64(st.iv), ct:abToB64(st.ct) } : null,
-        photos: photoMeta
-      };
-      const manifestBytes=enc.encode(JSON.stringify(manifest));
-      const header=new Uint8Array(10); header.set(enc.encode('DIAPO1'),0);
-      new DataView(header.buffer).setUint32(6, manifestBytes.length, false); // big-endian
-      const blob=new Blob([header, manifestBytes, ...imgParts], {type:'application/octet-stream'});
-      const sizeMB=(blob.size/1048576).toFixed(1); showToast('Ouverture du partage… ('+sizeMB+' Mo)');
+      const sel=new Set([...$('#exCats').querySelectorAll('input:checked')].map(cb=>cb.dataset.key));
+      if(!sel.size){ showToast('Sélectionne au moins une catégorie'); return; }
+      const allSelected = $('#exCats').querySelectorAll('input').length === sel.size;
+      const allowedIds = new Set(state.items.filter(it=>sel.has(titleOf(it))).map(it=>it.id));
+      if(!allowedIds.size){ showToast('Aucune photo dans la sélection'); return; }
+      const vault=await idbGet('meta','vault'); if(!vault){ showToast('Aucun coffre'); closeExport(); return; }
+      // State (points + rang) filtré sur les catégories choisies, re-chiffré avec la clé locale.
+      const selScores={}; for(const t in state.scores){ if(sel.has(t)) selScores[t]=state.scores[t]; }
+      const selCredits={}; for(const t in state.credits){ if(sel.has(t)) selCredits[t]=state.credits[t]; }
+      const selOrder=state.groupOrder.filter(t=>sel.has(t));
+      const e=await encJSON(state.key, { scores:selScores, credits:selCredits, groupOrder:selOrder });
+      const stateField={ iv:abToB64(e.iv), ct:abToB64(e.ct) };
+      const sizes=await planPhotoSizes(allSelected?null:allowedIds);
+      if(!sizes.length){ showToast('Aucune photo à exporter'); closeExport(); return; }
+      const chunks=planChunks(sizes, CHUNK_BYTES);
       const d=new Date(); const p2=n=>('0'+n).slice(-2);
       const stamp=d.getFullYear()+p2(d.getMonth()+1)+p2(d.getDate())+'-'+p2(d.getHours())+p2(d.getMinutes());
-      const fname='diaporama-coffre-'+stamp+'.diapo';
-      // iOS : feuille de partage (« Enregistrer dans Fichiers »). Évite que Safari quitte l'app en ouvrant le blob.
-      let shared=false;
-      try{
-        const file=new File([blob], fname, {type:'application/octet-stream'});
-        if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
-          await navigator.share({files:[file], title:'Coffre diaporama'});
-          shared=true;
-        }
-      }catch(err){ if(err && err.name==='AbortError'){ showToast('Partage annulé'); return; } }
-      if(!shared){
-        // Bureau : téléchargement classique
-        const url=URL.createObjectURL(blob);
-        const a=document.createElement('a'); a.href=url; a.download=fname; a.rel='noopener';
-        document.body.appendChild(a); a.click();
-        setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 3000);
+      const totalMB=Math.round(sizes.reduce((a,b)=>a+b.len,0)/1048576);
+      exSession={ vault, stateField, chunks, stamp, idx:0, ready:null, done:0 };
+      $('#exInfo').textContent = chunks.length>1
+        ? sizes.length+' photos · ~'+totalMB+' Mo → '+chunks.length+' fichiers. Partage chaque partie (« Enregistrer dans Fichiers »). Toutes les parties vont ensemble : garde-les au même endroit.'
+        : sizes.length+' photos · ~'+totalMB+' Mo → 1 fichier.';
+      $('#exSelect').style.display='none'; $('#exRun').style.display='';
+      await prepareNextPart();
+    }catch(e){ showToast('Erreur export : '+((e&&e.message)||e)); closeExport(); }
+  }
+  // Pré-construit le fichier de la partie courante AVANT que l'utilisateur ne tape « Partager »,
+  // pour que le clic appelle navigator.share() sans await intermédiaire (geste utilisateur exigé par iOS).
+  async function prepareNextPart(){
+    const s=exSession; if(!s) return;
+    const btn=$('#exShare');
+    if(s.idx>=s.chunks.length){
+      $('#exProgress').textContent='✅ Export terminé ('+s.chunks.length+'/'+s.chunks.length+')';
+      btn.disabled=true; btn.textContent='Terminé'; return;
+    }
+    const part=s.idx+1, parts=s.chunks.length;
+    btn.disabled=true; btn.textContent='Préparation partie '+part+'/'+parts+'…';
+    $('#exProgress').textContent='Partie '+part+'/'+parts+' — préparation…';
+    s.ready=await buildChunkFile(s.vault, s.stateField, s.chunks[s.idx], part, parts, s.stamp);
+    const mb=Math.round(s.ready.blob.size/1048576);
+    btn.disabled=false; btn.textContent=(parts>1?'📤 Partager partie '+part+'/'+parts:'📤 Partager')+' ('+mb+' Mo)';
+    $('#exProgress').textContent='Partie '+part+'/'+parts+' prête ('+mb+' Mo)'+(s.done?' · '+s.done+' déjà enregistrée(s)':'');
+  }
+  async function shareCurrentPart(){
+    const s=exSession; if(!s || !s.ready) return;
+    const { file, blob, fname }=s.ready;
+    let shared=false;
+    try{
+      if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+        await navigator.share({files:[file], title:'Coffre diaporama'});
+        shared=true;
       }
-      showToast(photoMeta.length+' photo(s) · '+sizeMB+' Mo exportées');
-    }catch(e){ showToast('Erreur export : '+((e&&e.message)||e)); }
-    finally{ ioGuard(false); }
+    }catch(err){ if(err && err.name==='AbortError'){ showToast('Partage annulé'); return; } }   // reste sur la même partie
+    if(!shared){
+      // Bureau : téléchargement classique
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=fname; a.rel='noopener';
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{ try{URL.revokeObjectURL(url); a.remove();}catch(e){} }, 3000);
+    }
+    s.done++; s.idx++; s.ready=null;   // libère la mémoire de la partie avant de préparer la suivante
+    await prepareNextPart();
   }
   function importVault(){
     if(!state.key){ showToast('Déverrouille le coffre d\'abord'); return; }
-    const inp=document.createElement('input'); inp.type='file'; inp.accept='.diapo,application/json,application/octet-stream';
+    // multiple : accepte plusieurs fichiers-parties (export découpé) d'un coup.
+    const inp=document.createElement('input'); inp.type='file'; inp.accept='.diapo,application/json,application/octet-stream'; inp.multiple=true;
     ioGuard(true);
     let picked=false;
     const onFocus=()=>{ window.removeEventListener('focus',onFocus); if(!picked) ioGuard(false); }; // annulé
     window.addEventListener('focus', onFocus);
     inp.addEventListener('change', async ()=>{
       picked=true;
-      try{ await doImport(inp.files && inp.files[0]); }
+      try{ await runImport([...(inp.files||[])]); }
       finally{ ioGuard(false); }
     });
     inp.click();
   }
-  async function doImport(f){
-      if(!f){ return; }
-      const buf=await f.arrayBuffer(); const u8=new Uint8Array(buf);
-      let payload=null, dataBuf=null, dataOff=0;   // dataBuf!=null => format binaire v2
-      if(u8.length>=10 && dec.decode(u8.subarray(0,6))==='DIAPO1'){
-        try{
-          const mlen=new DataView(buf).getUint32(6, false);
-          payload=JSON.parse(dec.decode(u8.subarray(10, 10+mlen)));
-          dataBuf=buf; dataOff=10+mlen;
-        }catch(e){ showToast('Fichier illisible'); return; }
-      } else {
-        try{ payload=JSON.parse(dec.decode(u8)); }catch(e){ showToast('Fichier illisible'); return; }
-      }
-      if(!payload || payload.format!==EXPORT_FORMAT || !payload.vault){ showToast('Fichier non reconnu'); return; }
-      const pin=prompt('Code de chiffrement du fichier :'); if(pin===null) return;
-      let impKey;
+  async function runImport(files){
+    if(!files.length) return;
+    // Ordonne par numéro de partie si le nom le contient (…-2sur5) — purement cosmétique.
+    files.sort((a,b)=>{ const m=s=>{const r=/-(\d+)sur\d+\.diapo$/i.exec(s.name||''); return r?+r[1]:0;}; return m(a)-m(b); });
+    const pin=prompt(files.length>1?('Code de chiffrement des '+files.length+' fichiers :'):'Code de chiffrement du fichier :');
+    if(pin===null) return;
+    showToast('Import en cours…');
+    let totalAdded=0, bad=0, badCode=false;
+    for(const f of files){
+      try{ totalAdded+=await importOneFile(f, pin); }
+      catch(e){ if(e && e.message==='badcode'){ badCode=true; break; } bad++; }
+    }
+    await saveState(); afterDataChange();
+    if(badCode){ showToast('Code incorrect'); return; }
+    showToast(totalAdded+' photo(s) importée(s)'+(bad?(' · '+bad+' fichier(s) ignoré(s)'):''));
+  }
+  // Importe UN fichier avec un code déjà connu. Renvoie le nb de photos ajoutées. Lève 'badcode' si code faux.
+  async function importOneFile(f, pin){
+    const buf=await f.arrayBuffer(); const u8=new Uint8Array(buf);
+    let payload=null, dataBuf=null, dataOff=0;   // dataBuf!=null => format binaire v2
+    if(u8.length>=10 && dec.decode(u8.subarray(0,6))==='DIAPO1'){
+      const mlen=new DataView(buf).getUint32(6, false);
+      payload=JSON.parse(dec.decode(u8.subarray(10, 10+mlen)));
+      dataBuf=buf; dataOff=10+mlen;
+    } else {
+      payload=JSON.parse(dec.decode(u8));
+    }
+    if(!payload || payload.format!==EXPORT_FORMAT || !payload.vault) throw new Error('badfile');
+    let impKey;
+    try{
+      impKey=await deriveKey(pin, b64ToU8(payload.vault.salt), payload.vault.iters||ITERS);
+      const pt=await decBuf(impKey, b64ToU8(payload.vault.verIv), b64ToU8(payload.vault.verCt));
+      if(dec.decode(pt)!==VTOKEN) throw 0;
+    }catch(e){ throw new Error('badcode'); }
+    // Réglages/classement/points du fichier (on ne reprend QUE classement + points)
+    let impState={};
+    if(payload.state){ try{ impState=await decJSON(impKey, b64ToU8(payload.state.iv), b64ToU8(payload.state.ct)); }catch(e){} }
+    // Photos : fusion, dédoublonnage par id, re-chiffrées avec la clé LOCALE
+    const existing=new Set(state.items.map(x=>x.id)); let added=0;
+    for(const p of (payload.photos||[])){
+      // Octets chiffrés de l'image : depuis la section binaire (v2) ou base64 (v1)
+      let dataCt;
+      if(dataBuf){ dataCt=dataBuf.slice(dataOff, dataOff+p.dataCtLen); dataOff+=p.dataCtLen; }
+      else { dataCt=b64ToU8(p.dataCt); }
+      if(existing.has(p.id)) continue;
       try{
-        impKey=await deriveKey(pin, b64ToU8(payload.vault.salt), payload.vault.iters||ITERS);
-        const pt=await decBuf(impKey, b64ToU8(payload.vault.verIv), b64ToU8(payload.vault.verCt));
-        if(dec.decode(pt)!==VTOKEN){ showToast('Code incorrect'); return; }
-      }catch(e){ showToast('Code incorrect'); return; }
-      showToast('Import en cours…');
-      // Réglages/classement/points du fichier (on ne reprend QUE classement + points)
-      let impState={};
-      if(payload.state){ try{ impState=await decJSON(impKey, b64ToU8(payload.state.iv), b64ToU8(payload.state.ct)); }catch(e){} }
-      // Photos : fusion, dédoublonnage par id, re-chiffrées avec la clé LOCALE
-      const existing=new Set(state.items.map(x=>x.id)); let added=0;
-      for(const p of (payload.photos||[])){
-        // Octets chiffrés de l'image : depuis la section binaire (v2) ou base64 (v1)
-        let dataCt;
-        if(dataBuf){ dataCt=dataBuf.slice(dataOff, dataOff+p.dataCtLen); dataOff+=p.dataCtLen; }
-        else { dataCt=b64ToU8(p.dataCt); }
-        if(existing.has(p.id)) continue;
-        try{
-          const bytes=await decBuf(impKey, b64ToU8(p.dataIv), dataCt);
-          const m=await decJSON(impKey, b64ToU8(p.metaIv), b64ToU8(p.metaCt));
-          const blob=new Blob([bytes], {type:m.type||'image/png'});
-          const it={id:p.id, title:m.title||'', url:URL.createObjectURL(blob), type:m.type||'image/png', createdAt:m.createdAt||Date.now()};
-          state.items.push(it); await savePhotoWithKey(state.key, it, blob);
-          existing.add(p.id); added++;
-        }catch(e){}
-      }
-      // Points : on ADDITIONNE. Rang # : on garde l'ordre du Mac, on ajoute les titres nouveaux.
-      if(impState.scores && typeof impState.scores==='object'){
-        for(const t in impState.scores){ state.scores[t]=(state.scores[t]||0)+(+impState.scores[t]||0); }
-      }
-      if(Array.isArray(impState.groupOrder)){
-        for(const t of impState.groupOrder){ if(!state.groupOrder.includes(t)) state.groupOrder.push(t); }
-      }
-      await saveState(); afterDataChange();
-      showToast(added+' photo(s) importée(s)');
+        const bytes=await decBuf(impKey, b64ToU8(p.dataIv), dataCt);
+        const m=await decJSON(impKey, b64ToU8(p.metaIv), b64ToU8(p.metaCt));
+        const blob=new Blob([bytes], {type:m.type||'image/png'});
+        const it={id:p.id, title:m.title||'', url:null, type:m.type||'image/png', createdAt:m.createdAt||Date.now()};
+        state.items.push(it); await savePhotoWithKey(state.key, it, blob);
+        existing.add(p.id); added++;
+      }catch(e){}
+    }
+    // Points : on REMPLACE par la valeur du fichier (ré-import idempotent, plus de doublement).
+    // Le fichier fait foi pour les catégories qu'il contient ; les autres scores du Mac sont conservés.
+    if(impState.scores && typeof impState.scores==='object'){
+      for(const t in impState.scores){ state.scores[t]=(+impState.scores[t]||0); }
+    }
+    if(impState.credits && typeof impState.credits==='object'){   // crédits : même logique que les points
+      for(const t in impState.credits){ const c=+impState.credits[t]||0; if(c>0) state.credits[t]=c; else delete state.credits[t]; }
+    }
+    if(Array.isArray(impState.groupOrder)){
+      for(const t of impState.groupOrder){ if(!state.groupOrder.includes(t)) state.groupOrder.push(t); }
+    }
+    return added;
   }
 
   // ================= Titres / groupes =================
@@ -775,6 +1132,8 @@
   }
   function allTitles(){ return Object.keys(groups()); }
   function rankMap(){ const m={}; state.groupOrder.forEach((t,i)=>m[t]=i+1); return m; }
+  // Rang « affiché » = position 1..N parmi les catégories RÉELLEMENT jouées (les non jouées n'ont pas de rang).
+  function playedRankMap(){ const m={}; playedTitles().forEach((t,i)=>m[t]=i+1); return m; }
   function syncGroups(){
     const titles=allTitles();
     state.groupOrder=state.groupOrder.filter(t=>titles.includes(t));
@@ -783,38 +1142,50 @@
       state.activeFilters=new Set([...state.activeFilters].filter(t=>titles.includes(t)));
       if(state.activeFilters.size===0) state.activeFilters=null;
     }
+    // Plafond : au-delà de MAX_CATS catégories, « tous » (null) devient explicitement les 7 premiers par rang.
+    if(state.activeFilters===null && titles.length>MAX_CATS){
+      const ordered=state.groupOrder.filter(t=>titles.includes(t));
+      state.activeFilters=new Set(ordered.slice(0,MAX_CATS));
+    }
   }
   function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
   // ================= Playlist =================
-  // Clés (catégories) réellement diffusées, en tenant compte des filtres.
-  function fairKeys(g){
-    const keys=Object.keys(g);
-    if(state.activeFilters===null) return keys;
-    return keys.filter(k=>state.activeFilters.has(k));
+  const MAX_CATS=7;   // plafond de catégories réellement diffusées dans un diaporama
+  // Catégories réellement jouées : filtres appliqués, dans l'ordre des rangs, plafonnées à MAX_CATS.
+  function playedTitles(){
+    const present=new Set(allTitles());
+    const ordered=state.groupOrder.filter(t=>present.has(t));         // ordre des rangs
+    const sel = state.activeFilters===null ? ordered : ordered.filter(t=>state.activeFilters.has(t));
+    return sel.slice(0, MAX_CATS);                                    // au plus 7 (les premiers par rang)
   }
   function buildPlaylist(){
-    const g=groups(); const keys=Object.keys(g); let list; state.fairCycle=false;
-    const fk = state.fairMode ? fairKeys(g) : [];
-    if(state.fairMode && fk.length){
-      // Mode équitable : on s'aligne sur la plus petite catégorie SÉLECTIONNÉE.
-      // Les catégories désélectionnées sortent du calcul du minimum.
-      const minCount=Math.min(...fk.map(k=>g[k].length));
+    const g=groups(); const pt=playedTitles(); let list; state.fairCycle=false;
+    if(state.fairMode && pt.length){
+      // Mode équitable : on s'aligne sur la plus petite catégorie jouée.
+      const minCount=Math.min(...pt.map(k=>g[k].length));
       const cycle=[];
-      for(const k of fk){ cycle.push(...shuffle(g[k].slice()).slice(0,minCount)); }
-      // Boost des favoris : une fois le cycle neutre passé, chaque photo likée
-      // (dans une catégorie affichée) est ajoutée une fois de plus. Petit déséquilibre voulu.
-      if(state.boostPhase===2 && state.likes.size){
-        for(const k of fk){ for(const it of g[k]){ if(state.likes.has(it.id)) cycle.push(it); } }
+      for(const k of pt){ cycle.push(...shuffle(g[k].slice()).slice(0,minCount)); }
+      // Boost des favoris : chaque photo likée est ajoutée AUTANT DE FOIS que son nombre de cœurs
+      // (1 à 3), en plus du tirage neutre. La catégorie likée a donc plus de photos.
+      if(state.likes.size){
+        for(const k of pt){ for(const it of g[k]){ const c=state.likes.get(it.id)||0; for(let i=0;i<c;i++) cycle.push(it); } }
+      }
+      // Crédits de catégorie : N crédits = N photos de plus de cette catégorie à chaque cycle.
+      // On pioche d'abord parmi les photos absentes du tirage neutre, puis au hasard si la catégorie est trop petite.
+      for(const k of pt){
+        const n=+state.credits[k]||0; if(n<=0) continue;
+        const inCycle=new Set(cycle.map(it=>it.id));
+        const pool=shuffle(g[k].filter(it=>!inCycle.has(it.id))), all=g[k];
+        for(let i=0;i<n;i++) cycle.push(i<pool.length ? pool[i] : all[Math.floor(Math.random()*all.length)]);
       }
       list=shuffle(cycle); state.fairCycle=true;
-    } else if(state.seriesMode && state.activeFilters===null && keys.length){
+    } else if(state.seriesMode && pt.length){
       list=[];
-      for(const k of keys){ let grp=g[k].slice(); if(state.random) shuffle(grp); list.push(...grp.slice(0,state.seriesSize)); }
+      for(const k of pt){ let grp=g[k].slice(); if(state.random) shuffle(grp); list.push(...grp.slice(0,state.seriesSize)); }
     } else {
-      let base;
-      if(state.activeFilters===null) base=state.items.slice();
-      else { base=[]; for(const t of state.activeFilters) if(g[t]) base.push(...g[t]); }
+      let base=[];
+      for(const t of pt){ if(g[t]) base.push(...g[t]); }
       if(state.random) shuffle(base); else base.sort((a,b)=>titleOf(a).localeCompare(titleOf(b)));
       list=base;
     }
@@ -841,33 +1212,40 @@
     clearTimer(); hideScorePop();
     if(!state.order.length){ photo.classList.add('hidden'); empty.classList.remove('hidden'); hud.classList.add('hidden'); updateRank(null); updateRankCount(); return; }
     empty.classList.add('hidden'); photo.classList.remove('hidden');
-    const it=currentItem(); const myToken=++showToken; photo.src=it.url;
+    const it=currentItem(); const myToken=++showToken;
+    photo.onload=photo.onerror=null;
     updateTitleHud(); updateRank(titleOf(it)); updateRankCount();
-    armAdvance(myToken);
+    if($('#rankList').classList.contains('show')) renderRankList();
+    // Image déchiffrée à la demande ; l'image précédente reste affichée le temps du déchiffrement.
+    ensureUrl(it).then(u=>{
+      if(myToken!==showToken || state.view!=='slideshow') return;
+      photo.src=u; armAdvance(myToken); prefetchAround();
+    }).catch(()=>{   // photo illisible/absente : on passe à la suivante
+      if(myToken!==showToken || state.paused || state.view!=='slideshow') return;
+      clearTimer(); state.timer=setTimeout(next, 800);
+    });
   }
   function next(){ if(!state.order.length) return; clearTimer();
     const ni=(state.index+1)%state.order.length;
     if(state.fairCycle && ni===0){
-      // Fin d'un cycle équitable : on reconstruit (nouveau tirage aléatoire).
-      const wasPhase=state.boostPhase;
-      buildPlaylist();                       // construit le cycle suivant avec la phase courante
-      if(wasPhase===1) state.boostPhase=2;   // le cycle neutre obligatoire vient de s'écouler → boost ensuite
+      buildPlaylist();   // Fin d'un cycle équitable : nouveau tirage (le boost des likes est déjà pris en compte)
     } else state.index=ni;
     show(); }
   function prev(){ if(!state.order.length) return; clearTimer();
     state.index=(state.index-1+state.order.length)%state.order.length; show(); }
-  function updateRank(title){ if(!state.showRank){ rankEl.textContent=''; return; } const r=rankMap()[title]; rankEl.textContent=r?String(r):''; }
+  function updateRank(title){ if(!state.showRank){ rankEl.textContent=''; return; } const r=playedRankMap()[title]; rankEl.textContent=r?String(r):''; }
   // Titre de catégorie (+ ❤️ si likée) en haut à gauche — reste visible même en immersif.
   function updateTitleHud(){
     const it=currentItem();
     if(state.view!=='slideshow' || !it || !state.showTitle){ hud.classList.add('hidden'); return; }
     hud.classList.remove('hidden');
-    hud.textContent=(state.likes.has(it.id)?'❤️ ':'')+(titleOf(it)||'(sans titre)');
+    const n=state.likes.get(it.id)||0;
+    hud.textContent=(titleOf(it)||'(sans titre)')+(n?' '+'❤️'.repeat(n):'');
   }
   function togglePause(){ state.paused=!state.paused; $('#btnPlay').textContent=state.paused?'▶️':'⏸';
     pausePill.textContent=state.paused?'⏸':'▶️'; pausePill.classList.add('show'); setTimeout(()=>pausePill.classList.remove('show'),500);
     if(state.paused) clearTimer(); else show(); }
-  function rebuild(){ syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount(); }
+  function rebuild(){ syncGroups(); buildPlaylist(); renderFilters(); renderLib(); renderCredits(); updateRankCount(); }
   function afterDataChange(){ rebuild(); if(state.view==='slideshow') show(); else showHome(); }
 
   // ---- Écran d'accueil / diaporama ----
@@ -878,8 +1256,9 @@
     $('#homePlay').classList.toggle('hidden', n===0);
   }
   function goHome(){
-    state.view='home'; clearTimer(); releaseWake();
+    state.view='home'; clearTimer(); releaseWake(); hideScorePop();
     document.body.classList.remove('immersive'); state.immersive=false;
+    $('#rankList').classList.remove('show');
     photo.classList.add('hidden');
     homeEl.classList.add('show');
     showHome();
@@ -896,37 +1275,43 @@
   // ================= Ajout / suppression =================
   async function addItem(title, blob, url){
     const it={id:crypto.randomUUID(), title:(title||'').trim(), url, type:blob.type||'image/png', createdAt:Date.now()};
-    state.items.push(it);
+    state.items.push(it); if(url) touchUrl(it);
     state.lastTitle=it.title || state.lastTitle;
-    try{ await savePhoto(it, blob); await saveState(); }catch(e){ showToast('Erreur de chiffrement'); }
+    let saved=true;
+    try{ await savePhoto(it, blob); await saveState(); }catch(e){ saved=false; }
     afterDataChange();
-    showToast(it.title ? ('Ajouté · '+it.title) : 'Ajouté (sans titre)');
+    if(saved) showToast(it.title ? ('Ajouté · '+it.title) : 'Ajouté (sans titre)');
+    else showToast('⚠️ « '+(it.title||'sans titre')+' » NON enregistrée — recharge l\'app et réessaie');
   }
-  async function removeItem(id){
-    const i=state.items.findIndex(x=>x.id===id); if(i<0) return;
-    try{ URL.revokeObjectURL(state.items[i].url); }catch(e){}
-    state.items.splice(i,1);
-    try{ await idbDel('photos', id); await saveState(); }catch(e){}
-    afterDataChange();
-  }
-  async function deleteCurrent(){
+  // Suppression effective (sans confirmation ni réapparition des menus).
+  async function doDeleteCurrent(){
+    if(state.view!=='slideshow') return;
     const it=currentItem(); if(!it) return;
+    clearTimer();                       // évite qu'un minuteur en attente n'affiche une image supprimée
     const keep=state.index;
-    try{ URL.revokeObjectURL(it.url); }catch(e){}
+    dropItemImages(it);
     state.items=state.items.filter(x=>x.id!==it.id);
     try{ await idbDel('photos', it.id); await saveState(); }catch(e){}
     syncGroups(); buildPlaylist(); renderFilters(); renderLib(); updateRankCount();
+    if($('#rankList').classList.contains('show')) renderRankList();
     state.index=state.order.length?Math.min(keep, state.order.length-1):0; show();
+  }
+  async function deleteCurrent(){   // version avec confirmation (touche Suppr, bouton 🗑)
+    const it=currentItem(); if(!it) return;
+    const t=titleOf(it);
+    if(!confirm('Supprimer définitivement cette image'+(t?(' de « '+t+' »'):'')+' ?\nCette action est irréversible.')) return;
+    await doDeleteCurrent();
   }
   async function renameGroup(oldTitle){
     const nv=prompt('Nouveau titre pour le groupe « '+oldTitle+' » :', oldTitle);
     if(nv===null) return; const nt=nv.trim(); if(!nt || nt===oldTitle) return;
     const gi=state.groupOrder.indexOf(oldTitle);
     for(const it of state.items){ if(titleOf(it)===oldTitle){ it.title=nt;
-      try{ const b=await (await fetch(it.url)).blob(); await savePhoto(it, b); }catch(e){} } }
+      try{ const b=await photoBlob(it); await savePhoto(it, b); }catch(e){} } }
     if(gi>=0){ if(!state.groupOrder.includes(nt)) state.groupOrder[gi]=nt; else state.groupOrder.splice(gi,1); }
     if(state.lastTitle===oldTitle) state.lastTitle=nt;
     if(state.scores[oldTitle]!=null){ state.scores[nt]=(state.scores[nt]||0)+state.scores[oldTitle]; delete state.scores[oldTitle]; }
+    if(state.credits[oldTitle]!=null){ state.credits[nt]=(state.credits[nt]||0)+state.credits[oldTitle]; delete state.credits[oldTitle]; }
     await saveState(); afterDataChange(); showToast('Groupe renommé');
   }
 
@@ -934,15 +1319,86 @@
   function assignRank(pos){
     const it=currentItem(); const t=it&&titleOf(it);
     if(!t){ showToast('Cette image n\'a pas de titre'); return; }
-    const go=state.groupOrder.filter(x=>x!==t);
-    const idx=Math.min(Math.max(pos-1,0), go.length); go.splice(idx,0,t);
-    for(const x of allTitles()) if(!go.includes(x)) go.push(x);
-    state.groupOrder=go; updateRank(t); updateRankCount(); saveState();
+    const played=playedTitles();
+    if(!played.includes(t)){ showToast('« '+t+' » n\'est pas affichée'); return; }
+    const others=played.filter(x=>x!==t);
+    const idx=Math.min(Math.max(pos-1,0), others.length); others.splice(idx,0,t);   // nouvel ordre des catégories jouées
+    // groupOrder = catégories jouées (nouvel ordre) puis les non jouées (ordre conservé).
+    const playedSet=new Set(others);
+    const rest=state.groupOrder.filter(x=>allTitles().includes(x) && !playedSet.has(x));
+    state.groupOrder=[...others, ...rest];
+    for(const x of allTitles()) if(!state.groupOrder.includes(x)) state.groupOrder.push(x);
+    updateRank(t); updateRankCount(); if($('#rankList').classList.contains('show')) renderRankList(); saveState();
     showToast('« '+t+' » — rang '+(idx+1));
   }
   function clearRank(){ const it=currentItem(); const t=it&&titleOf(it); if(!t) return;
     state.groupOrder=state.groupOrder.filter(x=>x!==t); state.groupOrder.push(t); updateRank(t); updateRankCount(); saveState(); }
-  function updateRankCount(){ const it=currentItem(); const r=it?rankMap()[titleOf(it)]:null; $('#rankBtn .cnt').textContent=r?r:''; }
+  // Re-tire au hasard les rangs de TOUTES les catégories (mélange l'ordre → chacune reçoit un nouveau rang).
+  function shuffleAllRanks(){
+    const titles=allTitles();
+    if(titles.length<2){ showToast('Pas assez de catégories'); return; }
+    if(!confirm('Retirer au hasard les rangs de toutes les catégories ?\nL\'ordre actuel sera remplacé par un tirage aléatoire.')) return;
+    state.groupOrder=shuffle(titles.slice());
+    const it=currentItem(); updateRank(it?titleOf(it):''); updateRankCount(); saveState();
+    showToast('Rangs re-tirés au hasard');
+  }
+  function updateRankCount(){ const it=currentItem(); const r=it?playedRankMap()[titleOf(it)]:null; $('#rankBtn .cnt').textContent=r?r:''; }
+  // Touche M : monte d'un cran la catégorie de la photo courante (celle du dessus descend d'un cran).
+  function promoteCurrentRank(){
+    if(state.view!=='slideshow') return;
+    const it=currentItem(); const t=it&&titleOf(it); if(!t){ showToast('Cette image n\'a pas de titre'); return; }
+    const played=playedTitles(); const pi=played.indexOf(t);
+    if(pi<0){ showToast('« '+t+' » n\'est pas affichée'); return; }
+    if(pi===0){ showToast('« '+t+' » est déjà au rang 1'); return; }
+    // Échange t avec la catégorie jouée juste au-dessus (dans groupOrder), en ignorant les non jouées.
+    const prev=played[pi-1];
+    const gi=state.groupOrder.indexOf(t), gj=state.groupOrder.indexOf(prev);
+    [state.groupOrder[gi], state.groupOrder[gj]]=[state.groupOrder[gj], state.groupOrder[gi]];
+    updateRank(t); updateRankCount(); if($('#rankList').classList.contains('show')) renderRankList();
+    buildPlaylist(); saveState();
+    showToast('« '+t+' » — rang '+pi);
+  }
+  // Touche X : retire la catégorie courante du diaporama (photos conservées) et la descend en bas des
+  // rangs (les autres montent d'un cran). Réactivable via les cases « Groupes à afficher » des réglages.
+  function disableCurrentCategory(){
+    if(state.view!=='slideshow') return;
+    const it=currentItem(); const t=it&&titleOf(it); if(!t){ showToast('Cette image n\'a pas de titre'); return; }
+    if(!confirm('Retirer la catégorie « '+t+' » du diaporama ?\nLes photos sont conservées ; réactivable dans les réglages.')) return;
+    const all=allTitles();
+    let sel = state.activeFilters===null ? new Set(all) : new Set(state.activeFilters);
+    sel.delete(t);
+    state.activeFilters = (sel.size===0) ? new Set() : sel;   // sous-ensemble strict (t retiré) → jamais « null »
+    state.groupOrder=state.groupOrder.filter(x=>x!==t); state.groupOrder.push(t);   // en bas des rangs
+    const keep=state.index;
+    buildPlaylist(); renderFilters(); updateRankCount(); if($('#rankList').classList.contains('show')) renderRankList(); saveState();
+    state.index=state.order.length?Math.min(keep, state.order.length-1):0; show();
+    showToast('« '+t+' » retirée du diaporama');
+  }
+  // Touche H : re-tire au hasard l'ordre d'apparition (relance une série), sans toucher aux rangs.
+  function shufflePlaylist(){
+    if(state.view!=='slideshow') return;
+    buildPlaylist(); show();   // nouveau tirage (boost des likes inclus)
+    showToast('Ordre re-tiré au hasard');
+  }
+  // Touche R : panneau à gauche listant toutes les catégories numérotées + leur rang.
+  function renderRankList(){
+    const el=$('#rankList'); el.innerHTML='';
+    const played=playedTitles();   // seulement les catégories jouées, dans l'ordre des rangs (1..N)
+    if(!played.length){ el.innerHTML='<div class="rl-row off">Aucune catégorie</div>'; return; }
+    const curT=titleOf(currentItem()||{});
+    played.forEach((t,i)=>{
+      const row=document.createElement('div');
+      row.className='rl-row'+(t===curT?' cur':'');
+      row.innerHTML='<span class="rl-n">'+(i+1)+'</span><span class="rl-t">'+escapeHtml(t)+'</span>';
+      el.appendChild(row);
+    });
+  }
+  function toggleRankList(){
+    if(state.view!=='slideshow') return;
+    const el=$('#rankList');
+    if(el.classList.contains('show')){ el.classList.remove('show'); return; }
+    renderRankList(); el.classList.add('show');
+  }
 
   // ================= Favoris (likes) =================
   // Les likes vivent en mémoire uniquement : ils sont effacés au rechargement de l'app.
@@ -953,8 +1409,11 @@
     if(state.view!=='slideshow') return;
     const it=currentItem(); if(!it) return;
     const now=Date.now(); if(now-lastLikeTs<400) return; lastLikeTs=now; // anti double-déclenchement tactile/souris
-    state.likes.add(it.id);
-    if(state.boostPhase===0) state.boostPhase=1; // 1er like → un cycle neutre complet, puis boost
+    const cur=state.likes.get(it.id)||0;
+    const max=state.multiLike?3:1;
+    if(cur>=max) return;                          // déjà au plafond → aucun cœur ni point ajouté
+    state.likes.set(it.id, cur+1);
+    if(state.likeScores){ const t=titleOf(it); if(t) addPointsTo(t, 1); } // option : un cœur = +1 au classement
     showHeart(); updateTitleHud();
   }
 
@@ -989,12 +1448,39 @@
       const row=document.createElement('div'); row.className='score-row';
       const pos=document.createElement('div'); pos.className='pos'+(pts>0&&i<3?' top':''); pos.textContent=(i+1);
       row.appendChild(pos);
-      if(state.showScoreThumbs){ const th=scoreThumb(t); const img=document.createElement('img'); if(th) img.src=th.url; row.appendChild(img); }
+      if(state.showScoreThumbs){ const th=scoreThumb(t); const img=document.createElement('img'); row.appendChild(img); if(th) lazyThumb(th, img, row); }
       const nm=document.createElement('div'); nm.className='nm'; nm.textContent=t; row.appendChild(nm);
       const p=document.createElement('div'); p.className='pts'; p.textContent=pts; row.appendChild(p);
       row.addEventListener('click', ()=>openScoreEdit(t));
       box.appendChild(row);
     });
+  }
+  // ================= Crédits de catégorie (bonus du mode équitable) =================
+  // Distincts des points (Classement), des cœurs (par photo) et du rang (#).
+  function addCredits(t, n){
+    if(n>0) state.credits[t]=(+state.credits[t]||0)+n; else delete state.credits[t];
+    saveState(); renderCredits(); rebuildIfFair();
+  }
+  function rebuildIfFair(){ if(state.fairMode && state.view==='slideshow'){ buildPlaylist(); show(); } }
+  function renderCredits(){
+    const box=$('#creditList'); if(!box) return; box.innerHTML='';
+    const rm=playedRankMap();
+    const titles=allTitles().filter(t=>t!=='').sort((a,b)=>(rm[a]||999)-(rm[b]||999) || a.localeCompare(b));
+    if(!titles.length){ box.innerHTML='<div class="hint">Aucune catégorie pour l\'instant.</div>'; return; }
+    for(const t of titles){
+      const c=+state.credits[t]||0;
+      const row=document.createElement('div'); row.className='catrow';
+      const nm=document.createElement('div'); nm.className='cn'; nm.innerHTML='<div class="ct"></div>'; nm.firstChild.textContent=t; row.appendChild(nm);
+      const v=document.createElement('div'); v.className='cr'+(c?'':' zero'); v.textContent=c; row.appendChild(v);
+      for(const n of [1,2,3]){ const b=document.createElement('button'); b.textContent='+'+n; b.addEventListener('click', ()=>addCredits(t, n)); row.appendChild(b); }
+      if(c){ const z=document.createElement('button'); z.className='del'; z.textContent='0'; z.title='Remettre à zéro'; z.addEventListener('click', ()=>addCredits(t, 0)); row.appendChild(z); }
+      box.appendChild(row);
+    }
+  }
+  function resetCredits(){
+    if(!Object.keys(state.credits).length){ showToast('Aucun crédit à réinitialiser'); return; }
+    if(!confirm('Remettre tous les crédits à zéro ?')) return;
+    state.credits={}; saveState(); renderCredits(); rebuildIfFair(); showToast('Crédits remis à zéro');
   }
   function resetScores(){
     if(!confirm('Remettre tous les scores à zéro ?')) return;
@@ -1070,7 +1556,7 @@
 
   // ================= Panneau =================
   const panel=$('#panel');
-  function openPanel(tab){ panel.classList.add('open'); if(tab) selectTab(tab); renderLib(); renderFilters(); renderScores(); syncSettingUI(); }
+  function openPanel(tab){ panel.classList.add('open'); if(tab) selectTab(tab); renderLib(); renderFilters(); renderScores(); renderCredits(); syncSettingUI(); renderVaultSize(); }
   function closePanel(){ panel.classList.remove('open'); }
   function selectTab(name){ document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
     document.querySelectorAll('.tabpage').forEach(p=>p.classList.toggle('active',p.id==='page-'+name));
@@ -1085,6 +1571,7 @@
     $('#setSeriesSize').value=state.seriesSize; $('#seriesVal').textContent=state.seriesSize;
     $('#setFair').checked=state.fairMode; $('#setRank').checked=state.showRank;
     $('#setTitle').checked=state.showTitle;
+    $('#setMultiLike').checked=state.multiLike; $('#setLikeScores').checked=state.likeScores;
     $('#setFull').checked=state.immersive;
   }
   $('#setDelay').addEventListener('input', e=>{ state.delay=+e.target.value*1000; $('#delayVal').textContent=(+e.target.value)+' s'; saveState(); });
@@ -1094,10 +1581,17 @@
   $('#setFair').addEventListener('change', e=>{ state.fairMode=e.target.checked; if(state.fairMode&&state.seriesMode){state.seriesMode=false;$('#setSeries').checked=false;} buildPlaylist(); show(); saveState(); });
   $('#setRank').addEventListener('change', e=>{ state.showRank=e.target.checked; updateRank(titleOf(currentItem()||{})); saveState(); });
   $('#setTitle').addEventListener('change', e=>{ state.showTitle=e.target.checked; updateTitleHud(); saveState(); });
+  $('#setMultiLike').addEventListener('change', e=>{ state.multiLike=e.target.checked; saveState(); });
+  $('#setLikeScores').addEventListener('change', e=>{ state.likeScores=e.target.checked; saveState(); });
   $('#setFull').addEventListener('change', e=>{ setImmersive(e.target.checked); });
   $('#lockNow').addEventListener('click', ()=>{ closePanel(); doLock(); });
   $('#changePin').addEventListener('click', startChangePin);
   $('#exportVault').addEventListener('click', exportVault);
+  $('#exStart').addEventListener('click', startExport);
+  $('#exAll').addEventListener('click', ()=>$('#exCats').querySelectorAll('input').forEach(cb=>cb.checked=true));
+  $('#exNone').addEventListener('click', ()=>$('#exCats').querySelectorAll('input').forEach(cb=>cb.checked=false));
+  $('#exShare').addEventListener('click', shareCurrentPart);
+  $('#exCancel').addEventListener('click', closeExport);
   $('#importVault').addEventListener('click', importVault);
 
   function renderFilters(){
@@ -1113,30 +1607,65 @@
   function toggleFilter(title){
     const all=allTitles(); let sel;
     if(state.activeFilters===null) sel=new Set(all); else sel=new Set(state.activeFilters);
-    if(sel.has(title)) sel.delete(title); else sel.add(title);
-    if(sel.size===0) state.activeFilters=new Set(); else if(sel.size===all.length) state.activeFilters=null; else state.activeFilters=sel;
+    if(sel.has(title)) sel.delete(title);
+    else { if(sel.size>=MAX_CATS){ showToast('Maximum '+MAX_CATS+' catégories'); return; } sel.add(title); }
+    if(sel.size===0) state.activeFilters=new Set();
+    else if(sel.size===all.length && all.length<=MAX_CATS) state.activeFilters=null;
+    else state.activeFilters=sel;
     buildPlaylist(); renderFilters(); show();
   }
-  $('#filterAll').addEventListener('click', ()=>{ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); });
+  // « Tous les groupes » : si ≤7 catégories → tous ; sinon → les 7 premiers par rang.
+  function selectAllGroups(){
+    const ordered=state.groupOrder.filter(t=>allTitles().includes(t));
+    state.activeFilters = ordered.length<=MAX_CATS ? null : new Set(ordered.slice(0,MAX_CATS));
+    buildPlaylist(); renderFilters(); show();
+  }
+  $('#filterAll').addEventListener('click', selectAllGroups);
 
+  // Bibliothèque : une ligne par catégorie (nb de photos + taille), boutons Renommer / Supprimer. Pas de miniatures.
   function renderLib(){
-    const grid=$('#libGrid'); grid.innerHTML='';
+    const box=$('#libGrid'); box.innerHTML='';
     $('#libCount').textContent=state.items.length?(state.items.length+' image(s) dans le coffre'):'Aucune image pour l\'instant.';
     if(!state.items.length) return;
     const g=groups(); const noCat=state.items.filter(x=>!titleOf(x));
-    const order=[...Object.keys(g), ...(noCat.length?['_none']:[])];
+    const order=[...Object.keys(g), ...(noCat.length?['']:[])];
+    const sizeEls=[];
     for(const key of order){
-      const list=key==='_none'?noCat:g[key];
-      const hdr=document.createElement('div'); hdr.className='grouphdr';
-      const label=document.createElement('span'); label.textContent=(key==='_none'?'Sans titre':key)+' · '+list.length; hdr.appendChild(label);
-      if(key!=='_none'){ const rb=document.createElement('button'); rb.className='ren'; rb.textContent='Renommer'; rb.addEventListener('click',()=>renameGroup(key)); hdr.appendChild(rb); }
-      grid.appendChild(hdr);
-      const wrap=document.createElement('div'); wrap.className='grid';
-      for(const it of list){ const t=document.createElement('div'); t.className='thumb';
-        t.innerHTML='<img src="'+it.url+'"><button class="del">✕</button>';
-        t.querySelector('.del').addEventListener('click',()=>removeItem(it.id)); wrap.appendChild(t); }
-      grid.appendChild(wrap);
+      const list=key===''?noCat:g[key];
+      const row=document.createElement('div'); row.className='catrow';
+      const info=document.createElement('div'); info.className='cn';
+      const t=document.createElement('div'); t.className='ct'; t.textContent=key===''?'(sans titre)':key;
+      const sub=document.createElement('div'); sub.className='cs'; sub.textContent=list.length+' photo'+(list.length>1?'s':'');
+      info.appendChild(t); info.appendChild(sub); row.appendChild(info);
+      sizeEls.push({sub, list});
+      if(key!==''){ const rb=document.createElement('button'); rb.textContent='Renommer'; rb.addEventListener('click',()=>renameGroup(key)); row.appendChild(rb); }
+      const delb=document.createElement('button'); delb.className='del'; delb.textContent='Supprimer'; delb.addEventListener('click',()=>deleteCategory(key)); row.appendChild(delb);
+      box.appendChild(row);
     }
+    // Tailles par catégorie, dès qu'elles sont connues (mesure en arrière-plan la 1ʳᵉ fois)
+    const fill=()=>{ for(const {sub, list} of sizeEls){ if(sub.isConnected) sub.textContent=list.length+' photo'+(list.length>1?'s':'')+' · '+fmtBytes(sumSizes(list)); } };
+    if(photoSizes) fill(); else if(panel.classList.contains('open')) ensureSizes().then(fill).catch(()=>{});
+  }
+  // Supprime DÉFINITIVEMENT toutes les photos d'une catégorie ('' = photos sans titre), avec confirmation.
+  async function deleteCategory(key){
+    const list=state.items.filter(it=>titleOf(it)===key); if(!list.length) return;
+    const name=key===''?'(sans titre)':'« '+key+' »';
+    if(!confirm('Supprimer DÉFINITIVEMENT la catégorie '+name+' et ses '+list.length+' photo'+(list.length>1?'s':'')+' ?\nCette action est irréversible.')) return;
+    clearTimer();
+    const ids=new Set(list.map(it=>it.id));
+    let failed=0;
+    for(const it of list){ try{ await idbDel('photos', it.id); dropItemImages(it); }catch(e){ failed++; ids.delete(it.id); } }
+    state.items=state.items.filter(it=>!ids.has(it.id));
+    for(const id of ids) state.likes.delete(id);
+    if(key!==''){
+      delete state.scores[key]; delete state.credits[key];
+      state.groupOrder=state.groupOrder.filter(t=>t!==key);
+      if(state.activeFilters) state.activeFilters.delete(key);
+      if(state.lastTitle===key) state.lastTitle='';
+    }
+    try{ await saveState(); }catch(e){}
+    afterDataChange(); renderScores(); renderVaultSize();
+    showToast(failed ? ('⚠️ '+failed+' photo(s) non supprimée(s)') : ('Catégorie '+name+' supprimée'));
   }
   function escapeHtml(s){ return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
@@ -1145,13 +1674,15 @@
   function openRankPicker(){
     const it=currentItem(); const t=it&&titleOf(it); if(!t){ showToast('Cette image n\'a pas de titre'); return; }
     $('#rankTitle').textContent='Rang de « '+t+' »';
-    const grid=$('#rankGrid'); grid.innerHTML=''; const cur=rankMap()[t];
-    for(let i=1;i<=9;i++){ const b=document.createElement('button'); b.textContent=i; if(i===cur) b.classList.add('cur');
+    const grid=$('#rankGrid'); grid.innerHTML='';
+    const played=playedTitles(); const n=Math.max(played.length,1); const cur=played.indexOf(t)+1;   // 1..N (0 si non jouée)
+    for(let i=1;i<=n;i++){ const b=document.createElement('button'); b.textContent=i; if(i===cur) b.classList.add('cur');
       b.addEventListener('click',()=>{ assignRank(i); rankModal.classList.remove('open'); }); grid.appendChild(b); }
     rankModal.classList.add('open');
   }
   $('#rankCancel').addEventListener('click',()=>rankModal.classList.remove('open'));
   $('#rankClear').addEventListener('click',()=>{ clearRank(); rankModal.classList.remove('open'); });
+  $('#rankShuffle').addEventListener('click',()=>{ rankModal.classList.remove('open'); shuffleAllRanks(); });
   rankModal.addEventListener('click', e=>{ if(e.target===rankModal) rankModal.classList.remove('open'); });
 
   // ================= Immersif =================
@@ -1192,6 +1723,7 @@
   scorePop.querySelectorAll('button').forEach(b=>b.addEventListener('click', ()=>{ addScore(+b.dataset.pts); hideScorePop(); }));
   document.addEventListener('click', e=>{ if(!scorePop.classList.contains('hidden') && !scorePop.contains(e.target) && e.target.id!=='scoreBtn') hideScorePop(); });
   $('#scoreReset').addEventListener('click', resetScores);
+  $('#creditReset').addEventListener('click', resetCredits);
   $('#scoreThumbsToggle').addEventListener('click', ()=>{ state.showScoreThumbs=!state.showScoreThumbs; saveState(); renderScores(); });
   $('#seGrid').querySelectorAll('button').forEach(b=>b.addEventListener('click', ()=>{
     if(!seCurrent) return; addPointsTo(seCurrent, +b.dataset.pts); $('#seTotal').textContent=state.scores[seCurrent]||0;
@@ -1204,10 +1736,17 @@
   function pauseIfPlaying(){ if(!state.paused && state.order.length) togglePause(); }
   function resumeIfPaused(){ if(state.paused && state.order.length) togglePause(); }
   let sx=0,sy=0,stt=0,lastTap=0; const zones=$('#zones');
+  // Balayage vers le haut depuis le cinquième inférieur de l'écran (barre de menus comprise), sur au moins
+  // un tiers de la hauteur → retour direct à l'accueil (masque les photos d'un seul geste, dur à faire par erreur).
+  function isHomeSwipe(y0, dx, dy, dt){
+    const h=window.innerHeight;
+    return state.view==='slideshow' && dt<800 && y0>=h*0.8 && -dy>=h/3 && Math.abs(dy)>Math.abs(dx)*1.5;
+  }
   zones.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY; stt=Date.now(); }, {passive:true});
   zones.addEventListener('touchend', e=>{
     const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy;
     const adx=Math.abs(dx), ady=Math.abs(dy); const dt=Date.now()-stt;
+    if(isHomeSwipe(sy, dx, dy, dt)){ goHome(); return; }
     if(dt<600 && adx>50 && adx>ady*1.5){ if(dx<0) next(); else prev(); return; }        // balayage horizontal
     if(dt<600 && ady>50 && ady>adx*1.5){                                                  // balayage vertical
       if(dy<0){ setImmersive(false); pauseIfPlaying(); }   // vers le haut : menus + pause
@@ -1219,8 +1758,23 @@
       if(now-lastTap<300){ likeCurrent(); lastTap=0; } else { lastTap=now; }              // double-tap → like
     }
   }, {passive:true});
+  // Même geste quand il démarre sur la barre de boutons (elle est au-dessus des zones).
+  const barEl=$('#bar'); let bsx=0, bsy=0, bst=0;
+  barEl.addEventListener('touchstart', e=>{ const t=e.changedTouches[0]; bsx=t.clientX; bsy=t.clientY; bst=Date.now(); }, {passive:true});
+  barEl.addEventListener('touchend', e=>{
+    const t=e.changedTouches[0];
+    if(isHomeSwipe(bsy, t.clientX-bsx, t.clientY-bsy, Date.now()-bst)){ e.preventDefault(); goHome(); }
+  });
   // Souris (Mac) : double-clic sur l'image = like.
   zones.addEventListener('dblclick', e=>{ e.preventDefault(); likeCurrent(); });
+  // Souris (Mac) : approcher le bas de l'écran ré-affiche la barre de menus (comme un lecteur vidéo).
+  // Gated sur pointeur fin → aucun effet sur iPhone (le tactile passe par les balayages).
+  if(window.matchMedia && window.matchMedia('(pointer: fine)').matches){
+    window.addEventListener('mousemove', e=>{
+      if(state.view!=='slideshow') return;
+      if(e.clientY >= window.innerHeight - 90) revealChrome();
+    }, {passive:true});
+  }
 
   document.addEventListener('keydown', e=>{
     if(!lockEl.classList.contains('show') && nameModal.classList.contains('open')) return;
@@ -1230,15 +1784,23 @@
       return;
     }
     if(state.key===null) return;
+    // Raccourcis du diaporama désactivés si un panneau/modale est ouvert (évite suppressions accidentelles).
+    const overlayOpen = panel.classList.contains('open') || scoreEditModal.classList.contains('open') || rankModal.classList.contains('open') || exportModal.classList.contains('open');
     const k=e.key;
     if(k===' '){ e.preventDefault(); if(state.order.length) togglePause(); }
     else if(k==='ArrowRight') next();
     else if(k==='ArrowLeft') prev();
+    else if(k==='ArrowDown'){ e.preventDefault(); setImmersive(false); pauseIfPlaying(); }  // Mac : ramener les menus + pause (comme balayage ↑)
     else if(k==='ArrowUp'){ state.showRank=!state.showRank; $('#setRank').checked=state.showRank; updateRank(titleOf(currentItem()||{})); saveState(); }
     else if(k==='Delete'||k==='Backspace') deleteCurrent();
-    else if(k==='0'){ state.activeFilters=null; buildPlaylist(); renderFilters(); show(); }
+    else if(k==='0'){ selectAllGroups(); }
     else if(/^[1-9]$/.test(k)) assignRank(+k);
     else if(k==='f'||k==='F') setImmersive(!state.immersive);
+    else if(!overlayOpen && (k==='s'||k==='S')) doDeleteCurrent();          // suppression immédiate (sans confirmation)
+    else if(!overlayOpen && (k==='h'||k==='H')) shufflePlaylist();          // re-tirage de l'ordre
+    else if(!overlayOpen && (k==='x'||k==='X')) disableCurrentCategory();   // désactiver la catégorie (confirm Entrée)
+    else if(!overlayOpen && (k==='r'||k==='R')) toggleRankList();           // liste des rangs à gauche
+    else if(!overlayOpen && (k==='m'||k==='M')) promoteCurrentRank();       // monter d'un rang
   });
   document.addEventListener('dblclick', e=>e.preventDefault(), {passive:false});
 
@@ -1296,7 +1858,8 @@
   function doLock(){
     if(state.key===null) return;
     clearTimer(); releaseWake();
-    for(const it of state.items){ try{URL.revokeObjectURL(it.url);}catch(e){} }
+    resetImageCaches();
+    photo.removeAttribute('src');
     state.items=[]; state.order=[]; state.key=null; state.view='home';
     photo.classList.add('hidden'); homeEl.classList.remove('show');
     showLockScreen('unlock');
